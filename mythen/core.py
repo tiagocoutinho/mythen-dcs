@@ -1,5 +1,3 @@
-__author__ = 'rhoms'
-
 import socket
 import struct
 
@@ -35,7 +33,7 @@ class MythenError(Exception):
         elif value == -6:
             msg = 'Error %d: Readout failed' % value
         elif value == -10:
-            msg = 'Error %d: Flatfield not found' % value
+            msg = 'Error %d: Flat field not found' % value
         elif value == -11:
             msg = 'Error %d: Bad channel file not found' % value
         elif value == -12:
@@ -43,9 +41,9 @@ class MythenError(Exception):
         elif value == -13:
             msg = 'Error %d: Noise file not found' % value
         elif value == -14:
-            msg = 'Error %d: Trimbit file not found' % value
+            msg = 'Error %d: Trim bit file not found' % value
         elif value == -15:
-            msg = 'Error %d: Invalid format of the flatfield file' % value
+            msg = 'Error %d: Invalid format of the flat field file' % value
         elif value == -16:
             msg = 'Error %d: Invalid format of the bad channel file' % value
         elif value == -17:
@@ -54,7 +52,7 @@ class MythenError(Exception):
         elif value == -18:
             msg = 'Error %d: Invalid format of the noise file' % value
         elif value == -19:
-            msg = 'Error %d: Invalid format of the trimbit file' % value
+            msg = 'Error %d: Invalid format of the trim bit file' % value
         elif value == -30:
             msg = 'Error %d: Could not create log file' % value
         elif value == -31:
@@ -83,13 +81,13 @@ class MythenError(Exception):
 class Mythen(object):
     MAX_BUFF_SIZE_MODULE = 10000
     MAX_CHANNELS = 1280
-    MASK_RUNNING = 1 #Bit 0
-    MASK_WAIT_TRIGGER = 8 #Bit 3
+    MASK_RUNNING = 1  # Bit 0
+    MASK_WAIT_TRIGGER = 8  # Bit 3
 
     def __init__(self, ip, port, timeout=3, nmod=1):
         self.ip = ip
         self.port = port
-        self.socket_conf = (ip,port)
+        self.socket_conf = (ip, port)
         self.mythen_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.mythen_socket.settimeout(timeout)
         self.nmod = nmod
@@ -99,9 +97,9 @@ class Mythen(object):
         self.trigger_cont = False
         self.frames = 1
 
-    def _send_msg(self,cmd):
+    def _send_msg(self, cmd):
         try:
-            self.mythen_socket.sendto(cmd,self.socket_conf)
+            self.mythen_socket.sendto(cmd, self.socket_conf)
         except socket.timeout, e:
             raise MythenError(ERR_MYTHEN_COMM_TIMEOUT)
 
@@ -114,17 +112,17 @@ class Mythen(object):
         return result
 
     def _to_int(self,raw_value):
-        return struct.unpack('i',raw_value)
+        return struct.unpack('i', raw_value)
 
     def _to_int_list(self,raw_value):
         fmt = "<%di" % (len(raw_value) // 4)
-        return struct.unpack(fmt,raw_value)
+        return struct.unpack(fmt, raw_value)
 
     def _to_long_long(self, raw_value):
-        return struct.unpack('<q',raw_value)
+        return struct.unpack('<q', raw_value)
 
     def _to_float(self,raw_value):
-        return struct.unpack('f',raw_value)
+        return struct.unpack('f', raw_value)
 
     def command(self, cmd):
         self._send_msg(cmd)
@@ -235,7 +233,7 @@ class Mythen(object):
     def get_time(self):
         raw_value = self.command('-get time')
         value = self._to_long_long(raw_value)[0]
-        value *= 100e-9 #Time in seconds
+        value *= 100e-9  # Time in seconds
         return value
 
     def get_trigger(self):
@@ -290,7 +288,7 @@ class Mythen(object):
         i = int(value)
         if i not in[0,1]:
             raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
-        self.command('-flatfieldcorrection %d' % d)
+        self.command('-flatfieldcorrection %d' % value)
 
     def set_frames(self, frames):
         self.command('-frames %d' %frames)
@@ -312,7 +310,7 @@ class Mythen(object):
 
     def set_trigger(self, value):
         i = int(value)
-        if i not in[0,1]:
+        if i not in[0, 1]:
             raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
         self.command('-trigen %d' % i)
         self.trigger = True
