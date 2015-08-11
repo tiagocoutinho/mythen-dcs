@@ -32,7 +32,7 @@ import numpy as np
 
 DEV_STATE_UNKNOWN = PyTango.DevState.UNKNOWN
 DEV_STATE_FAULT = PyTango.DevState.FAULT
-DEV_STATE_MOVING = PyTango.DevState.MOVING
+DEV_STATE_RUNNING = PyTango.DevState.RUNNING
 DEV_STATE_ON = PyTango.DevState.ON
 DEV_STATE_INIT = PyTango.DevState.INIT
 
@@ -191,7 +191,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
             return
         status = self.mythen.status
         if status in ['RUNNING', 'WAIT_TRIGGER']:
-            self.set_state(DEV_STATE_MOVING)
+            self.set_state(DEV_STATE_RUNNING)
         elif status == 'ON':
             self.set_state(DEV_STATE_ON)
         else:
@@ -381,7 +381,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         the_att.set_value(self.raw_data)
 
     def is_LastRaw_allowed(self, req_type):
-        return self.get_state() in (DEV_STATE_ON, DEV_STATE_MOVING)
+        return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING)
 
     # ------------------------------------------------------------------
     #   read & write LiveMode attribute
@@ -439,7 +439,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         the_att.set_value(self.roi_data)
 
     def is_ROIData_allowed(self, req_type):
-        return self.get_state() in (DEV_STATE_ON, DEV_STATE_MOVING)
+        return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING)
 
     # ------------------------------------------------------------------
     #   read & write Threshold attribute
@@ -476,7 +476,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.mythen.stop()
 
     def is_Stop_allowed(self):
-        return self.get_state() in (DEV_STATE_ON, DEV_STATE_MOVING,)
+        return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING,)
 
     @ExceptionHandler
     def Start(self):
@@ -488,7 +488,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
             self.stop_flag = False
             method = self._livemode
             self.mythen.frames = 1
-            self.set_state(DEV_STATE_MOVING)
+            self.set_state(DEV_STATE_RUNNING)
             self.set_status('Live Mode')
             self.async = True
         else:
@@ -541,7 +541,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.async = False
 
     def is_Reset_allowed(self):
-        return self.get_state() in (DEV_STATE_MOVING, DEV_STATE_FAULT,
+        return self.get_state() in (DEV_STATE_RUNNING, DEV_STATE_FAULT,
                                     DEV_STATE_UNKNOWN, DEV_STATE_ON)
 
     @ExceptionHandler
