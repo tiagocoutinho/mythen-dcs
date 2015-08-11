@@ -10,7 +10,7 @@ class MythenPostProcessing(object):
     def __init__(self, filename, channel_name):
        """
        :param filename: file name of the nexus file (ffff.h5)
-       :param channel_name: mythen 1D channel name used in the measurement group
+       :param channel_name: mythendcs 1D channel name used in the measurement group
        :return:
        """
         self.file = h5py.File(filename, 'r')
