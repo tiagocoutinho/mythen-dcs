@@ -24,7 +24,6 @@
 # =============================================================================
 
 import PyTango
-import time
 from mythendcs import Mythen, UDP_PORT, TCP_PORT, COUNTER_BITS, \
     SETTINGS_MODES, MythenError
 import threading
@@ -397,23 +396,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.live_mode = data[0]
 
     def is_LiveMode_allowed(self, req_type):
-        return self.get_state() in (DEV_STATE_ON,)
-
-    # ------------------------------------------------------------------
-    #   read & write LiveMode attribute
-    # ------------------------------------------------------------------
-    @ExceptionHandler
-    def read_LiveMode(self, the_att):
-        the_att.set_value(self.live_mode)
-
-    @ExceptionHandler
-    def write_LiveMode(self, the_att):
-        data = []
-        the_att.get_write_value(data)
-        self.live_mode = data[0]
-
-    def is_LiveMode_allowed(self, req_type):
-        return self.get_state() in (DEV_STATE_ON,)
+        return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING)
 
     # ------------------------------------------------------------------
     #   read & write ROI attribute
@@ -484,19 +467,18 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.buffer_raw = []
         self.buffer_roi = []
         self._update_mask()
+        self.set_state(DEV_STATE_RUNNING)
+        self.async = True
         if self.live_mode:
             self.stop_flag = False
             method = self._livemode
             self.mythen.frames = 1
-            self.set_state(DEV_STATE_RUNNING)
             self.set_status('Live Mode')
-            self.async = True
         else:
             method = self._acquisiton
             self.mythen.start()
         t = threading.Thread(target=method)
         t.start()
-
 
     def _acquisiton(self):
         while True:
@@ -510,6 +492,8 @@ class MythenDCSDevice(PyTango.Device_4Impl):
                 self.buffer_roi.append(self.roi_data)
             except MythenError:
                 break
+        self.set_state(DEV_STATE_ON)
+        self.async = False
 
     def _livemode(self):
         while not self.stop_flag:
