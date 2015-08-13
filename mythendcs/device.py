@@ -532,7 +532,10 @@ class MythenDCSDevice(PyTango.Device_4Impl):
             self.set_status('Live Mode')
         else:
             method = self._acquisiton
+            self.set_status('Acquisition Mode')
             self.mythen.start()
+        self.push_change_event('State', self.get_state())
+        self.push_change_event('Status', self.get_status())
         t = threading.Thread(target=method)
         t.start()
 
@@ -549,6 +552,9 @@ class MythenDCSDevice(PyTango.Device_4Impl):
             except MythenError:
                 break
         self.set_state(DEV_STATE_ON)
+        self.set_status('ON')
+        self.push_change_event('State', self.get_state())
+        self.push_change_event('Status', self.get_status())
         self.async = False
 
     def _livemode(self):
@@ -562,6 +568,10 @@ class MythenDCSDevice(PyTango.Device_4Impl):
                 self.push_change_event('ROIData', self.roi_data)
             except MythenError:
                 break
+        self.set_state(DEV_STATE_ON)
+        self.set_status('ON')
+        self.push_change_event('State', self.get_state())
+        self.push_change_event('Status', self.get_status())
         self.async = False
 
     def is_Start_allowed(self):
