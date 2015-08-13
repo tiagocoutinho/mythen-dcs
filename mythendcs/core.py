@@ -178,6 +178,7 @@ class Mythen(object):
         :return: None
         """
         self.command('-reset')
+        self._frames = 1
 
     def autosettings(self, value):
         """

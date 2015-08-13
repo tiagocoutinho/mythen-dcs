@@ -119,9 +119,14 @@ class MythenDCSClass(PyTango.DeviceClass):
         'ROIData':  [[PyTango.ArgType.DevULong64,
                       PyTango.AttrDataFormat.SCALAR,
                       PyTango.AttrWriteType.READ]],
-        'ROI': [[PyTango.ArgType.DevLong,
-                 PyTango.AttrDataFormat.SPECTRUM,
-                 PyTango.AttrWriteType.READ_WRITE, 2]],
+        'ROILow': [[PyTango.ArgType.DevLong,
+                    PyTango.AttrDataFormat.SCALAR,
+                    PyTango.AttrWriteType.READ_WRITE],
+                   {'min value': 0, 'max value': 1279}],
+        'ROIHigh': [[PyTango.ArgType.DevLong,
+                     PyTango.AttrDataFormat.SCALAR,
+                     PyTango.AttrWriteType.READ_WRITE],
+                    {'min value': 1, 'max value': 1280}],
         'Threshold': [[PyTango.ArgType.DevDouble,
                        PyTango.AttrDataFormat.SCALAR,
                        PyTango.AttrWriteType.READ_WRITE],
@@ -179,7 +184,22 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         # Define events on attributes
         self.set_change_event('RawData', True, False)
         self.set_change_event('ROIData', True, False)
-        #self.set_change_event('LiveData', True, False)
+        self.set_change_event('ReadoutBits', True, False)
+        self.set_change_event('RateCorrection', True, False)
+        self.set_change_event('FlatFieldCorrection', True, False)
+        self.set_change_event('BadChnInterp', True, False)
+        self.set_change_event('Settings', True, False)
+        self.set_change_event('SettingsMode', True, False)
+        self.set_change_event('Tau', True, False)
+        self.set_change_event('IntTime', True, False)
+        self.set_change_event('Frames', True, False)
+        self.set_change_event('ROILow', True, False)
+        self.set_change_event('ROIHigh', True, False)
+        self.set_change_event('Threshold', True, False)
+        self.set_change_event('LiveMode', True, False)
+        self.set_change_event('State', True, False)
+        self.set_change_event('Status', True, False)
+
 
     # ------------------------------------------------------------------
     #   State machine implementation
@@ -203,6 +223,8 @@ class MythenDCSDevice(PyTango.Device_4Impl):
     def always_executed_hook(self):
         self.info_stream('In %s::always_executed_hook()' % self.get_name())
         self.state_machine()
+        self.push_change_event('State', self.get_state())
+        self.push_change_event('Status', self.get_status())
 
     # ------------------------------------------------------------------
     #   ATTRIBUTES
@@ -234,6 +256,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         if data[0] not in COUNTER_BITS:
             raise ValueError('Invalid value. %s' % repr(COUNTER_BITS))
         self.mythen.readoutbits = data[0]
+        self.push_change_event('ReadoutBits', data[0])
 
     def is_ReadoutBits_allowed(self, req_type):
         return self.get_state() in (DEV_STATE_ON,)
@@ -250,6 +273,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         data = []
         the_att.get_write_value(data)
         self.mythen.rate = data[0]
+        self.push_change_event('RateCorrection', data[0])
 
     def is_RateCorrection_allowed(self, req_type):
         return self.get_state() in (DEV_STATE_ON,)
@@ -266,6 +290,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         data = []
         the_att.get_write_value(data)
         self.mythen.flatfield = data[0]
+        self.push_change_event('FlatFieldCorrection', data[0])
 
     def is_FlatFieldCorrection_allowed(self, req_type):
         return self.get_state() in (DEV_STATE_ON,)
@@ -282,6 +307,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         data = []
         the_att.get_write_value(data)
         self.mythen.badchnintrpl = data[0]
+        self.push_change_event('BadChnInterp', data[0])
 
     def is_BadChnInterp_allowed(self, req_type):
         return self.get_state() in (DEV_STATE_ON,)
@@ -318,6 +344,9 @@ class MythenDCSDevice(PyTango.Device_4Impl):
 
     def _setting_mode(self, value):
         self.mythen.settingsmode = value
+        settings = self.mythen.settings
+        self.push_change_event('Settings', settings)
+        self.push_change_event('SettingsMode', value)
         self.set_state(DEV_STATE_ON)
         self.async = False
 
@@ -336,6 +365,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         data = []
         the_att.get_write_value(data)
         self.mythen.tau = data[0]
+        self.push_change_event('Tau', data[0])
 
     def is_Tau_allowed(self, req_type):
         return self.get_state() in (DEV_STATE_ON,)
@@ -352,6 +382,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         data = []
         the_att.get_write_value(data)
         self.mythen.inttime = data[0]
+        self.push_change_event('IntTime', data[0])
 
     def is_Time_allowed(self, req_type):
         return self.get_state() in (DEV_STATE_ON,)
@@ -368,6 +399,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         data = []
         the_att.get_write_value(data)
         self.mythen.frames = data[0]
+        self.push_change_event('Frames', data[0])
 
     def is_Frames_allowed(self, req_type):
         return self.get_state() in (DEV_STATE_ON,)
@@ -394,24 +426,47 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         data = []
         the_att.get_write_value(data)
         self.live_mode = data[0]
+        self.push_change_event('LiveMode', data[0])
 
     def is_LiveMode_allowed(self, req_type):
         return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING)
 
     # ------------------------------------------------------------------
-    #   read & write ROI attribute
+    #   read & write ROILow attribute
     # ------------------------------------------------------------------
     @ExceptionHandler
-    def read_ROI(self, the_att):
-        the_att.set_value(self.roi)
+    def read_ROILow(self, the_att):
+        the_att.set_value(self.roi[0])
 
     @ExceptionHandler
-    def write_ROI(self, the_att):
+    def write_ROILow(self, the_att):
         data = []
         the_att.get_write_value(data)
-        self.roi = data[0:2]
+        if data[0] >= self.roi[1]:
+            raise ValueError('The value should be lower than the ROIHigh.')
+        self.roi[0] = data[0]
+        self.push_change_event('ROILow', data[0])
 
-    def is_ROI_allowed(self, req_type):
+    def is_ROILow_allowed(self, req_type):
+        return self.get_state() in (DEV_STATE_ON,)
+
+    # ------------------------------------------------------------------
+    #   read & write ROILow attribute
+    # ------------------------------------------------------------------
+    @ExceptionHandler
+    def read_ROIHigh(self, the_att):
+        the_att.set_value(self.roi[1])
+
+    @ExceptionHandler
+    def write_ROIHigh(self, the_att):
+        data = []
+        the_att.get_write_value(data)
+        if data[0] <= self.roi[0]:
+            raise ValueError('The value should be greater than the ROILow.')
+        self.roi[1] = data[0]
+        self.push_change_event('ROILow', data[0])
+
+    def is_ROIHigh_allowed(self, req_type):
         return self.get_state() in (DEV_STATE_ON,)
 
     # ------------------------------------------------------------------
@@ -436,6 +491,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         data = []
         the_att.get_write_value(data)
         self.mythen.threshold = data[0]
+        self.push_change_event('Threshold', data[0])
 
     def is_Threshold_allowed(self, req_type):
         return self.get_state() in (DEV_STATE_ON,)
@@ -516,12 +572,27 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.async = True
         self.set_state(DEV_STATE_INIT)
         self.set_status('Resetting....')
+        self.push_change_event('State', self.get_state())
+        self.push_change_event('Status', self.get_status())
         t = threading.Thread(target=self._reset)
         t.start()
 
     def _reset(self):
         self.mythen.reset()
+        self.push_change_event('ReadoutBits', self.mythen.readoutbits)
+        self.push_change_event('RateCorrection', self.mythen.rate)
+        self.push_change_event('FlatFieldCorrection', self.mythen.flatfield)
+        self.push_change_event('BadChnInterp', self.mythen.badchnintrpl)
+        self.push_change_event('Settings', self.mythen.settings)
+        self.push_change_event('SettingsMode', self.mythen.settingsmode)
+        self.push_change_event('Tau', self.mythen.tau)
+        self.push_change_event('IntTime', self.mythen.inttime)
+        self.push_change_event('Frames', self.mythen.frames)
+        self.push_change_event('Threshold', self.mythen.threshold)
         self.set_state(DEV_STATE_ON)
+        self.set_status('ON')
+        self.push_change_event('State', self.get_state())
+        self.push_change_event('Status', self.get_status())
         self.async = False
 
     def is_Reset_allowed(self):
@@ -539,6 +610,10 @@ class MythenDCSDevice(PyTango.Device_4Impl):
     def _autosettings(self, value):
         print value
         self.mythen.autosettings(value)
+        settings = self.mythen.settings
+        settings_mode = self.mythen.settingsmode
+        self.push_change_event('Settings', settings)
+        self.push_change_event('SettingsMode', settings_mode)
         self.set_state(DEV_STATE_ON)
         self.async = False
 
