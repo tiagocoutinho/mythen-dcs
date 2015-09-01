@@ -1,6 +1,7 @@
 #!/usr/bin/env python
-from mythendcs import run
+from mythendcs import run, __version__
 import sys
 
 if __name__ == "__main__":
-  run(sys.argv)
+    print ('Device Server Version: %s' % __version__)
+    run(sys.argv)

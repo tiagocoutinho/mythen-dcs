@@ -1,10 +1,13 @@
 from PyTango import Util, DevFailed
 import sys
 from mythendcs.device import MythenDCSClass, MythenDCSDevice
+from mythendcs import __version__
 
 SERVER_NAME = 'MythenDCS'
 
 def run(args=None):
+    print ('Device Server Version: %s' % __version__)
+
     try:
         if not args:
             args = sys.argv[1:]

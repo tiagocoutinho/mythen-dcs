@@ -1,8 +1,8 @@
 from distutils.core import setup
-
+from mythendcs import __version__
 setup(
     name='MythenDCS',
-    version='1.0',
+    version=__version__,
     packages=['mythendcs'],
     scripts=['script/MythenDCS', 'test/test_mythendcs_core.py'],
     url='',
