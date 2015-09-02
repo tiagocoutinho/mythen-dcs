@@ -464,7 +464,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         if data[0] <= self.roi[0]:
             raise ValueError('The value should be greater than the ROILow.')
         self.roi[1] = data[0]
-        self.push_change_event('ROILow', data[0])
+        self.push_change_event('ROIHigh', data[0])
 
     def is_ROIHigh_allowed(self, req_type):
         return self.get_state() in (DEV_STATE_ON,)
