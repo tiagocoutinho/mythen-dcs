@@ -46,7 +46,7 @@ def ExceptionHandler(func):
                                                       repr(args)))
             func(*args, **kwargs)
             obj.debug_stream('Exiting %s' % func.__name__)
-        except Exception, e:
+        except Exception as e:
             obj.warn_stream('Hardware warning in %s: %s' % (func.__name__, e))
             raise e
     return new_func
@@ -150,7 +150,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.info_stream('In MythenDCSDevice.__init__')
         try:
             self.init_device()
-        except Exception, e:
+        except Exception as e:
             self.set_state(DEV_STATE_FAULT)
             self.error_stream('Hardware error in __init__(): %s' % e)
             raise e
