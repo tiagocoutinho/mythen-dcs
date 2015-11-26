@@ -44,8 +44,9 @@ def ExceptionHandler(func):
             obj = args[0]
             obj.debug_stream('Entering in %s (%s)' % (func.__name__,
                                                       repr(args)))
-            func(*args, **kwargs)
+            result = func(*args, **kwargs)
             obj.debug_stream('Exiting %s' % func.__name__)
+            return result
         except Exception as e:
             obj.warn_stream('Hardware warning in %s: %s' % (func.__name__, e))
             raise e
@@ -62,7 +63,8 @@ class MythenDCSClass(PyTango.DeviceClass):
         'HostIP': [PyTango.DevString, 'Mythen IP', ''],
         'Port': [PyTango.DevString, 'TPC or UDP', 'UDP'],
         'NMod': [PyTango.DevLong, 'Number of modules connected', 1],
-        'Timeout': [PyTango.DevLong, 'Serial port timeout', 3]
+        'Timeout': [PyTango.DevLong, 'Serial port timeout', 3],
+        'NROIs': [PyTango.DevLong, 'Number of ROIs', 3]
         }
 
     # Command definitions
@@ -112,21 +114,10 @@ class MythenDCSClass(PyTango.DeviceClass):
                     PyTango.AttrWriteType.READ_WRITE]],
         'RawData': [[PyTango.ArgType.DevLong,
                         PyTango.AttrDataFormat.SPECTRUM,
-                        PyTango.AttrWriteType.READ, 1280]],
+                        PyTango.AttrWriteType.READ, Mythen.MAX_CHANNELS]],
         'LiveMode': [[PyTango.ArgType.DevBoolean,
                       PyTango.AttrDataFormat.SCALAR,
                       PyTango.AttrWriteType.READ_WRITE]],
-        'ROIData':  [[PyTango.ArgType.DevULong64,
-                      PyTango.AttrDataFormat.SCALAR,
-                      PyTango.AttrWriteType.READ]],
-        'ROILow': [[PyTango.ArgType.DevLong,
-                    PyTango.AttrDataFormat.SCALAR,
-                    PyTango.AttrWriteType.READ_WRITE],
-                   {'min value': 0, 'max value': 1279}],
-        'ROIHigh': [[PyTango.ArgType.DevLong,
-                     PyTango.AttrDataFormat.SCALAR,
-                     PyTango.AttrWriteType.READ_WRITE],
-                    {'min value': 1, 'max value': 1280}],
         'Threshold': [[PyTango.ArgType.DevDouble,
                        PyTango.AttrDataFormat.SCALAR,
                        PyTango.AttrWriteType.READ_WRITE],
@@ -177,13 +168,17 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.live_mode = False
         self.async = False
         self.raw_data = np.zeros(1280)
-        self.roi_data = 0
         self.stop_flag = False
-        self.roi = [0, 1280]
-
+        self.roi_data = []
+        self.rois = []
+        for i in range(self.NROIs):
+            data = 0
+            rois = [0, Mythen.MAX_CHANNELS]
+            self.roi_data.append(data)
+            self.rois.append(rois)
+        
         # Define events on attributes
         self.set_change_event('RawData', True, False)
-        self.set_change_event('ROIData', True, False)
         self.set_change_event('ReadoutBits', True, False)
         self.set_change_event('RateCorrection', True, False)
         self.set_change_event('FlatFieldCorrection', True, False)
@@ -193,14 +188,59 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.set_change_event('Tau', True, False)
         self.set_change_event('IntTime', True, False)
         self.set_change_event('Frames', True, False)
-        self.set_change_event('ROILow', True, False)
-        self.set_change_event('ROIHigh', True, False)
         self.set_change_event('Threshold', True, False)
         self.set_change_event('LiveMode', True, False)
         self.set_change_event('State', True, False)
         self.set_change_event('Status', True, False)
 
+        self.dyn_attr()
 
+    # ------------------------------------------------------------------
+    #   Create dynamic attributes
+    # ------------------------------------------------------------------
+    def dyn_attr(self):
+        attr_roilow_name = 'ROI{0}Low'
+        attr_roihigh_name = 'ROI{0}High'
+        attr_roidata_name = 'ROI{0}Data'
+        
+        for roi in range(1, self.NROIs+1):
+            #ROI result
+            attr_roidata = PyTango.Attr(attr_roidata_name.format(roi),
+                                        PyTango.ArgType.DevULong64,
+                                        PyTango.AttrWriteType.READ)
+
+            self.add_attribute(attr_roidata, self.read_ROIData, None,
+                               self.is_ROIData_allowed)
+           
+            #Low value of the ROI
+            attr_roilow = PyTango.Attr(attr_roilow_name.format(roi),
+                                       PyTango.ArgType.DevULong,
+                                       PyTango.AttrWriteType.READ_WRITE)
+            props = PyTango.UserDefaultAttrProp()
+            props.set_max_value(str(Mythen.MAX_CHANNELS - 1))
+            props.set_min_value('0')
+            attr_roilow.set_default_properties(props)
+
+            self.add_attribute(attr_roilow, self.read_ROILow, self.write_ROILow,
+                               self.is_ROILow_allowed)
+            
+            attr_roihigh = PyTango.Attr(attr_roihigh_name.format(roi),
+                                        PyTango.ArgType.DevULong,
+                                        PyTango.AttrWriteType.READ_WRITE)
+                                        
+            
+            props.set_max_value(str(Mythen.MAX_CHANNELS))
+            props.set_min_value('1')
+            attr_roihigh.set_default_properties(props)
+
+            self.add_attribute(attr_roihigh, self.read_ROIHigh,
+                               self.write_ROIHigh, self.is_ROIHigh_allowed)
+           
+            self.set_change_event(attr_roilow_name.format(roi), True, False)
+            self.set_change_event(attr_roihigh_name.format(roi), True, False)
+            self.set_change_event(attr_roidata_name.format(roi), True, False)
+
+    
     # ------------------------------------------------------------------
     #   State machine implementation
     # ------------------------------------------------------------------
@@ -434,18 +474,22 @@ class MythenDCSDevice(PyTango.Device_4Impl):
     # ------------------------------------------------------------------
     #   read & write ROILow attribute
     # ------------------------------------------------------------------
-    @ExceptionHandler
+    #@ExceptionHandler
     def read_ROILow(self, the_att):
-        the_att.set_value(self.roi[0])
+        attr_name = the_att.get_name()
+        nroi = int(attr_name[3]) - 1
+        the_att.set_value(self.rois[nroi][0])
 
-    @ExceptionHandler
+    #@ExceptionHandler
     def write_ROILow(self, the_att):
         data = []
+        attr_name = the_att.get_name()
+        nroi = int(attr_name[3]) - 1
         the_att.get_write_value(data)
-        if data[0] >= self.roi[1]:
+        if data[0] >= self.rois[nroi][1]:
             raise ValueError('The value should be lower than the ROIHigh.')
-        self.roi[0] = data[0]
-        self.push_change_event('ROILow', data[0])
+        self.rois[nroi][0] = data[0]
+        self.push_change_event(attr_name, data[0])
 
     def is_ROILow_allowed(self, req_type):
         return self.get_state() in (DEV_STATE_ON,)
@@ -453,18 +497,22 @@ class MythenDCSDevice(PyTango.Device_4Impl):
     # ------------------------------------------------------------------
     #   read & write ROILow attribute
     # ------------------------------------------------------------------
-    @ExceptionHandler
+    #@ExceptionHandler
     def read_ROIHigh(self, the_att):
-        the_att.set_value(self.roi[1])
+        attr_name = the_att.get_name()
+        nroi = int(attr_name[3]) - 1
+        the_att.set_value(self.rois[nroi][1])
 
-    @ExceptionHandler
+    #@ExceptionHandler
     def write_ROIHigh(self, the_att):
         data = []
         the_att.get_write_value(data)
-        if data[0] <= self.roi[0]:
+        attr_name = the_att.get_name()
+        nroi = int(attr_name[3]) - 1
+        if data[0] <= self.rois[nroi][0]:
             raise ValueError('The value should be greater than the ROILow.')
-        self.roi[1] = data[0]
-        self.push_change_event('ROIHigh', data[0])
+        self.rois[nroi][1] = data[0]
+        self.push_change_event(attr_name, data[0])
 
     def is_ROIHigh_allowed(self, req_type):
         return self.get_state() in (DEV_STATE_ON,)
@@ -472,9 +520,11 @@ class MythenDCSDevice(PyTango.Device_4Impl):
     # ------------------------------------------------------------------
     #   read ROIData attribute
     # ------------------------------------------------------------------
-    @ExceptionHandler
+    #@ExceptionHandler
     def read_ROIData(self, the_att):
-        the_att.set_value(self.roi_data)
+        attr_name = the_att.get_name()
+        nroi = int(attr_name[3]) - 1
+        the_att.set_value(self.roi_data[nroi])
 
     def is_ROIData_allowed(self, req_type):
         return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING)
@@ -500,14 +550,17 @@ class MythenDCSDevice(PyTango.Device_4Impl):
     #   COMMANDS
     # ------------------------------------------------------------------
     @ExceptionHandler
-    def _update_mask(self):
+    def _get_hwmask(self):
         # Take the bad channels
-        self.mask = self.mythen.badchn
+        return self.mythen.badchn
 
-        # Apply the ROI
-        min_roi, max_roi = self.roi
-        self.mask[:min_roi] = 1
-        self.mask[max_roi:] = 1
+    @ExceptionHandler
+    def _roi2mask(self, nroi, mask):
+        new_mask = np.array(mask)
+        min_roi, max_roi = self.rois[nroi]
+        new_mask[:min_roi] = 1
+        new_mask[max_roi:] = 1
+        return new_mask
 
     @ExceptionHandler
     def Stop(self):
@@ -520,9 +573,10 @@ class MythenDCSDevice(PyTango.Device_4Impl):
     @ExceptionHandler
     def Start(self):
         self.raw_data = None
-        self.buffer_raw = []
-        self.buffer_roi = []
-        self._update_mask()
+        hw_mask = self._get_hwmask()
+        self.masks = []
+        for i in range(self.NROIs):
+            self.masks.append(self._roi2mask(i, hw_mask))
         self.set_state(DEV_STATE_RUNNING)
         self.async = True
         if self.live_mode:
@@ -539,40 +593,40 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         t = threading.Thread(target=method)
         t.start()
 
-    def _acquisiton(self):
-        while True:
-            try:
-                self.raw_data = self.mythen.readout
-                new_data = np.ma.MaskedArray(self.raw_data, self.mask)
-                self.roi_data = np.uint64(new_data.sum())
-                self.push_change_event('RawData', self.raw_data)
-                self.push_change_event('ROIData', self.roi_data)
-                self.buffer_raw.append(self.raw_data)
-                self.buffer_roi.append(self.roi_data)
-            except MythenError:
-                break
+    def _acq(self):
+        print 'acquisition thread'
+        self.raw_data = self.mythen.readout
+        self.push_change_event('RawData', self.raw_data)
+        for i in range(self.NROIs):
+            new_data = np.ma.MaskedArray(self.raw_data, self.masks[i])
+            self.roi_data[i] = np.uint64(new_data.sum())
+            print self.roi_data[i]
+            attr_name = 'ROI%dData' % (i+1)
+            self.push_change_event(attr_name, self.roi_data[i])
+
+    def _acq_end(self):
         self.set_state(DEV_STATE_ON)
         self.set_status('ON')
         self.push_change_event('State', self.get_state())
         self.push_change_event('Status', self.get_status())
         self.async = False
 
+    def _acquisiton(self):
+        while True:
+            try:
+                self._acq()
+            except MythenError:
+                break
+        self._acq_end()
+
     def _livemode(self):
         while not self.stop_flag:
             try:
                 self.mythen.start()
-                self.raw_data = self.mythen.readout
-                new_data = np.ma.MaskedArray(self.raw_data, self.mask)
-                self.roi_data = np.uint64(new_data.sum())
-                self.push_change_event('RawData', self.raw_data)
-                self.push_change_event('ROIData', self.roi_data)
+                self._acq()
             except MythenError:
                 break
-        self.set_state(DEV_STATE_ON)
-        self.set_status('ON')
-        self.push_change_event('State', self.get_state())
-        self.push_change_event('Status', self.get_status())
-        self.async = False
+        self._acq_end()
 
     def is_Start_allowed(self):
         return self.get_state() in (DEV_STATE_ON,)
@@ -599,8 +653,6 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.push_change_event('IntTime', self.mythen.inttime)
         self.push_change_event('Frames', self.mythen.frames)
         self.push_change_event('Threshold', self.mythen.threshold)
-        self.push_change_event('ROILow', self.roi[0])
-        self.push_change_event('ROIHigh', self.roi[1])
         self.push_change_event('LiveMode', self.live_mode)
         self.set_state(DEV_STATE_ON)
         self.set_status('ON')
