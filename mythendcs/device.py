@@ -61,7 +61,7 @@ class MythenDCSClass(PyTango.DeviceClass):
     # Device Properties
     device_property_list = {
         'HostIP': [PyTango.DevString, 'Mythen IP', ''],
-        'Port': [PyTango.DevString, 'TPC or UDP', 'UDP'],
+        'Port': [PyTango.DevString, 'TCP or UDP', 'UDP'],
         'NMod': [PyTango.DevLong, 'Number of modules connected', 1],
         'Timeout': [PyTango.DevLong, 'Serial port timeout', 3],
         'NROIs': [PyTango.DevLong, 'Number of ROIs', 3]
@@ -681,4 +681,3 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.push_change_event('SettingsMode', settings_mode)
         self.set_state(DEV_STATE_ON)
         self.async = False
-
