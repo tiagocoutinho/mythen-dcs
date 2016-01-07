@@ -594,7 +594,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         t.start()
 
     def _acq(self):
-        print 'acquisition thread'
+        print ('acquisition thread')
         self.raw_data = self.mythen.readout
         self.push_change_event('RawData', self.raw_data)
         for i in range(self.NROIs):

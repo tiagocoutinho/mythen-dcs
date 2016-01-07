@@ -116,7 +116,7 @@ class Mythen(object):
         """
         try:
             self.mythen_socket.sendto(cmd, self.socket_conf)
-        except socket.timeout, e:
+        except socket.timeout as e:
             raise MythenError(ERR_MYTHEN_COMM_TIMEOUT)
 
     def _receive_msg(self):
@@ -125,7 +125,7 @@ class Mythen(object):
         """
         try:
             result, socket_rsv = self.mythen_socket.recvfrom(self.buff)
-        except socket.timeout, e:
+        except socket.timeout as e:
             raise MythenError(ERR_MYTHEN_COMM_TIMEOUT)
 
         return result
@@ -276,10 +276,10 @@ class Mythen(object):
     @frames.setter
     def frames(self, value):
         """
-        :param frames: Number of frames per acquisition.
+        :param value: Number of frames per acquisition.
         :return:
         """
-        self.command('-frames %d' %value)
+        self.command('-frames %d' % value)
         self._frames = value
 
     # ------------------------------------------------------------------
@@ -301,7 +301,7 @@ class Mythen(object):
         :param value: Integration time in seconds
         :return:
         """
-        # Exposure value in uints of 100ns.
+        # Exposure value in units of 100ns.
         ntimes = long(value / 100e-9)
         self.command('-time %d' % ntimes)
 
@@ -505,24 +505,31 @@ class Mythen(object):
             raise MythenError(ERR_MYTHEN_COMM_LENGTH)
         return value
 
-
-
-
-
-
-
+    # ------------------------------------------------------------------
+    #   Triggers
+    # ------------------------------------------------------------------
 
     # TODO organize the trigger configuration.
-
-
-
-
 
     def get_trigger(self):
         return self.trigger
 
+    def set_trigger(self, value):
+        i = int(value)
+        if i not in[0, 1]:
+            raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
+        self.command('-trigen %d' % i)
+        self.trigger = True
+
     def get_cont_trigger(self):
         return self.trigger_cont
+
+    def set_cont_trigger(self, value):
+        i = int(value)
+        if i not in[0,1]:
+            raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
+        self.command('-conttrigen %d' % i)
+        self.trigger_cont = True
 
     def set_active_modules(self, modules):
         self.command('-nmodules %d' % modules)
@@ -533,20 +540,17 @@ class Mythen(object):
             raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
         self.command('outpol %d' %i)
 
+    # def set_input_high(self, value):
+    #     i = int(value)
+    #     if i not in[0,1]:
+    #         raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
+    #     self.command('outpol %d' %i)
+    #
     def set_input_high(self, value):
         i = int(value)
         if i not in[0,1]:
             raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
-        self.command('outpol %d' %i)
-
-
-
-    def set_cont_trigger(self, value):
-        i = int (value)
-        if i not in[0,1]:
-            raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
-        self.command('-conttrigen %d' % i)
-        self.trigger_cont = True
+        self.command('-inpol %d' % i)
 
     def set_delay_trigger(self, time):
         ntimes = long(time / 100e-9)
@@ -556,8 +560,6 @@ class Mythen(object):
         ntimes = long(time / 100e-9)
         self.command('-delafter %d' % ntimes)
 
-
-
     def set_gate(self, value):
         i = int(value)
         if i not in[0,1]:
@@ -566,26 +568,6 @@ class Mythen(object):
 
     def set_num_gates(self, gates):
         self.command('-gates %d' % gates)
-
-
-    def set_trigger(self, value):
-        i = int(value)
-        if i not in[0, 1]:
-            raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
-        self.command('-trigen %d' % i)
-        self.trigger = True
-
-
-    def set_input_high(self, value):
-        i = int(value)
-        if i not in[0,1]:
-            raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
-        self.command('-inpol %d' % i)
-
-
-
-
-
 
     def __del__(self):
         self.mythen_socket.close()
