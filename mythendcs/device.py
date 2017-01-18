@@ -28,6 +28,9 @@ from mythendcs import Mythen, UDP_PORT, TCP_PORT, COUNTER_BITS, \
     SETTINGS_MODES, MythenError
 import threading
 import numpy as np
+import time
+from mythendcs import __version__
+
 
 DEV_STATE_UNKNOWN = PyTango.DevState.UNKNOWN
 DEV_STATE_FAULT = PyTango.DevState.FAULT
@@ -122,6 +125,28 @@ class MythenDCSClass(PyTango.DeviceClass):
                        PyTango.AttrDataFormat.SCALAR,
                        PyTango.AttrWriteType.READ_WRITE],
                        {'min value': 0.05}],
+        'ImageData': [[PyTango.ArgType.DevLong,
+                       PyTango.AttrDataFormat.IMAGE,
+                       PyTango.AttrWriteType.READ,
+                       Mythen.MAX_CHANNELS, 30000]],
+        'FramesReadies': [[PyTango.ArgType.DevULong64,
+                           PyTango.AttrDataFormat.SCALAR,
+                           PyTango.AttrWriteType.READ]],
+        'TriggerMode': [[PyTango.ArgType.DevBoolean,
+                         PyTango.AttrDataFormat.SCALAR,
+                         PyTango.AttrWriteType.READ_WRITE]],
+        'ContinuousTrigger': [[PyTango.ArgType.DevBoolean,
+                         PyTango.AttrDataFormat.SCALAR,
+                         PyTango.AttrWriteType.READ_WRITE]],
+        'GateMode': [[PyTango.ArgType.DevBoolean,
+                      PyTango.AttrDataFormat.SCALAR,
+                      PyTango.AttrWriteType.READ_WRITE]],
+        'OutputHigh': [[PyTango.ArgType.DevBoolean,
+                        PyTango.AttrDataFormat.SCALAR,
+                        PyTango.AttrWriteType.READ_WRITE]],
+        'InputHigh': [[PyTango.ArgType.DevBoolean,
+                       PyTango.AttrDataFormat.SCALAR,
+                       PyTango.AttrWriteType.READ_WRITE]],
 
 
     # TODO: Implement the other attributes.
@@ -165,9 +190,11 @@ class MythenDCSDevice(PyTango.Device_4Impl):
             port = TCP_PORT
         self.mythen = Mythen(self.HostIP, port, self.Timeout, self.NMod)
         # Initialize attributes
+        self.frames_readies = 0
         self.live_mode = False
         self.async = False
         self.raw_data = np.zeros(1280)
+        self.image_data = []
         self.stop_flag = False
         self.roi_data = []
         self.rois = []
@@ -192,6 +219,11 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.set_change_event('LiveMode', True, False)
         self.set_change_event('State', True, False)
         self.set_change_event('Status', True, False)
+        self.set_change_event('TriggerMode', True, False)
+        self.set_change_event('GateMode', True, False)
+        self.set_change_event('ContinuousTrigger', True, False)
+        self.set_change_event('OutputHigh', True, False)
+        self.set_change_event('InputHigh', True, False)
 
         self.dyn_attr()
 
@@ -472,6 +504,108 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING)
 
     # ------------------------------------------------------------------
+    #   read & write TriggerMode attribute
+    # ------------------------------------------------------------------
+    @ExceptionHandler
+    def read_TriggerMode(self, the_att):
+        the_att.set_value(self.mythen.triggermode)
+
+    @ExceptionHandler
+    def write_TriggerMode(self, the_att):
+        data = []
+        the_att.get_write_value(data)
+        self.mythen.triggermode = data[0]
+        self.push_change_event('TriggerMode', data[0])
+
+    def is_TriggerMode_allowed(self, req_type):
+        return self.get_state() in (DEV_STATE_ON,)
+
+    # ------------------------------------------------------------------
+    #   read & write ContinuousTrigger attribute
+    # ------------------------------------------------------------------
+    @ExceptionHandler
+    def read_ContinuousTrigger(self, the_att):
+        the_att.set_value(self.mythen.continuoustrigger)
+
+    @ExceptionHandler
+    def write_ContinuousTrigger(self, the_att):
+        data = []
+        the_att.get_write_value(data)
+        self.mythen.continuoustrigger = data[0]
+        self.push_change_event('ContinuousTrigger', data[0])
+
+    def is_ContinuousTrigger_allowed(self, req_type):
+        return self.get_state() in (DEV_STATE_ON,)
+
+    # ------------------------------------------------------------------
+    #   read & write GateMode attribute
+    # ------------------------------------------------------------------
+    @ExceptionHandler
+    def read_GateMode(self, the_att):
+        the_att.set_value(self.mythen.gatemode)
+
+    @ExceptionHandler
+    def write_GateMode(self, the_att):
+        data = []
+        the_att.get_write_value(data)
+        self.mythen.gatemode = data[0]
+        self.push_change_event('GateMode', data[0])
+
+    def is_GateMode_allowed(self, req_type):
+        return self.get_state() in (DEV_STATE_ON,)
+
+    # ------------------------------------------------------------------
+    #   read & write ContinuousTrigger attribute
+    # ------------------------------------------------------------------
+    @ExceptionHandler
+    def read_ContinuousTrigger(self, the_att):
+        the_att.set_value(self.mythen.continuoustrigger)
+
+    @ExceptionHandler
+    def write_ContinuousTrigger(self, the_att):
+        data = []
+        the_att.get_write_value(data)
+        self.mythen.continuoustrigger = data[0]
+        self.push_change_event('ContinuousTrigger', data[0])
+
+    def is_ContinuousTrigger_allowed(self, req_type):
+        return self.get_state() in (DEV_STATE_ON,)
+
+    # ------------------------------------------------------------------
+    #   read & write OutputHigh attribute
+    # ------------------------------------------------------------------
+    @ExceptionHandler
+    def read_OutputHigh(self, the_att):
+        the_att.set_value(self.mythen.outputhigh)
+
+    @ExceptionHandler
+    def write_OutputHigh(self, the_att):
+        data = []
+        the_att.get_write_value(data)
+        self.mythen.outputhigh = data[0]
+        self.push_change_event('OutputHigh', data[0])
+
+    def is_OutputHigh_allowed(self, req_type):
+        return self.get_state() in (DEV_STATE_ON,)
+
+    # ------------------------------------------------------------------
+    #   read & write InputHigh attribute
+    # ------------------------------------------------------------------
+    @ExceptionHandler
+    def read_InputHigh(self, the_att):
+        the_att.set_value(self.mythen.inputhigh)
+
+    @ExceptionHandler
+    def write_InputHigh(self, the_att):
+        data = []
+        the_att.get_write_value(data)
+        self.mythen.inputhigh = data[0]
+        self.push_change_event('InputHigh', data[0])
+
+    def is_InputHigh_allowed(self, req_type):
+        return self.get_state() in (DEV_STATE_ON,)
+
+    # ------------------------------------------------------------------
     #   read & write ROILow attribute
     # ------------------------------------------------------------------
     #@ExceptionHandler
@@ -547,6 +681,26 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         return self.get_state() in (DEV_STATE_ON,)
 
     # ------------------------------------------------------------------
+    #   read Image attribute
+    # ------------------------------------------------------------------
+    @ExceptionHandler
+    def read_ImageData(self, the_att):
+        the_att.set_value(self.image_data)
+
+    def is_ImageData_allowed(self, req_type):
+        return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING)
+
+    # ------------------------------------------------------------------
+    #   read FramesReadies attribute
+    # ------------------------------------------------------------------
+    @ExceptionHandler
+    def read_FramesReadies(self, the_att):
+        the_att.set_value(self.frames_readies)
+
+    def is_FramesReadies_allowed(self, req_type):
+        return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING)
+
+    # ------------------------------------------------------------------
     #   COMMANDS
     # ------------------------------------------------------------------
     @ExceptionHandler
@@ -575,6 +729,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.raw_data = None
         hw_mask = self._get_hwmask()
         self.masks = []
+        self.image_data = []
         for i in range(self.NROIs):
             self.masks.append(self._roi2mask(i, hw_mask))
         self.set_state(DEV_STATE_RUNNING)
@@ -585,9 +740,14 @@ class MythenDCSDevice(PyTango.Device_4Impl):
             self.mythen.frames = 1
             self.set_status('Live Mode')
         else:
-            method = self._acquisiton
-            self.set_status('Acquisition Mode')
-            self.mythen.start()
+            if self.mythen.frames == 1:
+                method = self._frame_acq
+                self.set_status('Acquisition Mode')
+                self.mythen.start()
+            else:
+                method = self._multiframes_acq
+                self.set_status('MultiFrames Acquisition Mode')
+
         self.push_change_event('State', self.get_state())
         self.push_change_event('Status', self.get_status())
         t = threading.Thread(target=method)
@@ -597,6 +757,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         print ('acquisition thread')
         self.raw_data = self.mythen.readout
         self.push_change_event('RawData', self.raw_data)
+        self.image_data.append(self.raw_data.tolist())
         for i in range(self.NROIs):
             new_data = np.ma.MaskedArray(self.raw_data, self.masks[i])
             self.roi_data[i] = np.uint64(new_data.sum())
@@ -611,7 +772,22 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.push_change_event('Status', self.get_status())
         self.async = False
 
-    def _acquisiton(self):
+    def _multiframes_acq(self):
+        self.mythen.start()
+        self.frames_readies = 0
+        while True:
+            while self.mythen.fifoempty and self.mythen.running:
+                time.sleep(0.1)
+            try:
+                self.raw_data = self.mythen.readout
+                self.image_data.append(self.raw_data.tolist())
+                self.frames_readies += 1
+            except MythenError as e:
+                print 'error!!!!!!!!!!!!!!!!!!!!!!11\n\n', e
+                break
+        self._acq_end()
+
+    def _frame_acq(self):
         while True:
             try:
                 self._acq()

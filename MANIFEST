@@ -1,0 +1,8 @@
+setup.cfg
+setup.py
+mythendcs/__init__.py
+mythendcs/core.py
+mythendcs/device.py
+mythendcs/server.py
+script/MythenDCS
+test/test_mythendcs_core.py

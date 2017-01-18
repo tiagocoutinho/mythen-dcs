@@ -82,6 +82,7 @@ class MythenError(Exception):
 
         return msg
 
+TRIGGER_TYPES=['INTERNAL','EXTERNAL_TRIGGER_MULTI', 'EXTERNAL_TRIGGER_START', ]
 class Mythen(object):
     """
     Class to control the Mythen. Exported API:
@@ -90,7 +91,8 @@ class Mythen(object):
     MAX_BUFF_SIZE_MODULE = 10000
     MAX_CHANNELS = 1280
     MASK_RUNNING = 1  # Bit 0
-    MASK_WAIT_TRIGGER = 8  # Bit 3
+    MASK_WAIT_TRIGGER = 1 << 3  # Bit 3
+    MASK_FIFO_EMPTY = 1 << 16  # Bit 16
 
     def __init__(self, ip, port, timeout=3, nmod=1):
         """
@@ -108,6 +110,12 @@ class Mythen(object):
         self.buff = nmod * self.MAX_BUFF_SIZE_MODULE
         self.nchannels = nmod * self.MAX_CHANNELS
         self.frames = 1
+        self.triggermode = False
+        self.gatemode = False
+        self.inputhigh = True
+        self.outputhigh = True
+        self.continuoustrigger = False
+
 
     def _send_msg(self, cmd):
         """
@@ -379,11 +387,45 @@ class Mythen(object):
         value = self._to_int(raw_value)[0]
         if value & self.MASK_RUNNING:
             state = 'RUNNING'
-        elif value & self.MASK_WAIT_TRIGGER:
-            state = 'WAIT_TRIGGER'
         else:
             state = 'ON'
         return state
+
+    # ------------------------------------------------------------------
+    #   waitingtrigger
+    # ------------------------------------------------------------------
+    @property
+    def waitingtrigger(self):
+        """
+        :return: Return the status of the Mythen: On, Running or Wait Trigger.
+        """
+        raw_value = self.command('-get status')
+        value = self._to_int(raw_value)[0]
+        return bool(value & self.MASK_WAIT_TRIGGER)
+
+    # ------------------------------------------------------------------
+    #   fifoempty
+    # ------------------------------------------------------------------
+    @property
+    def fifoempty(self):
+        """
+        :return: Return the status of the Mythen: On, Running or Wait Trigger.
+        """
+        raw_value = self.command('-get status')
+        value = self._to_int(raw_value)[0]
+        return bool(value & self.MASK_FIFO_EMPTY)
+
+    # ------------------------------------------------------------------
+    #   running
+    # ------------------------------------------------------------------
+    @property
+    def running(self):
+        """
+        :return: Return the status of the Mythen: On, Running or Wait Trigger.
+        """
+        raw_value = self.command('-get status')
+        value = self._to_int(raw_value)[0]
+        return bool(value & self.MASK_RUNNING)
 
     # ------------------------------------------------------------------
     #   Rate
@@ -509,48 +551,65 @@ class Mythen(object):
     #   Triggers
     # ------------------------------------------------------------------
 
-    # TODO organize the trigger configuration.
+    @property
+    def triggermode(self):
+        return self._trigger
 
-    def get_trigger(self):
-        return self.trigger
-
-    def set_trigger(self, value):
-        i = int(value)
-        if i not in[0, 1]:
+    @triggermode.setter
+    def triggermode(self, value):
+        if type(value) is not bool:
             raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
-        self.command('-trigen %d' % i)
-        self.trigger = True
+        self.command('-trigen %d' % int(value))
+        self._trigger = value
 
-    def get_cont_trigger(self):
-        return self.trigger_cont
+    @property
+    def continuoustrigger(self):
+        return self._trigger_cont
 
-    def set_cont_trigger(self, value):
-        i = int(value)
-        if i not in[0,1]:
+    @continuoustrigger.setter
+    def continuoustrigger(self, value):
+        if type(value) is not bool:
             raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
-        self.command('-conttrigen %d' % i)
-        self.trigger_cont = True
+        self.command('-conttrigen %d' % int(value))
+        self._trigger_cont = value
+
+    @property
+    def gatemode(self):
+        return self._gatemode
+
+    @gatemode.setter
+    def gatemode(self, value):
+        if type(value) is not bool:
+            raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
+        self.command('-gateen %d' % int(value))
+        self._gatemode = value
+
+    @property
+    def outputhigh(self):
+        return self._outputhigh
+
+    @outputhigh.setter
+    def outputhigh(self, value):
+        if type(value) is not bool:
+            raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
+        self.command('-outpol %d' % int(value))
+        self._outputhigh = value
+
+    @property
+    def inputhigh(self):
+        return self._inputhigh
+
+    @inputhigh.setter
+    def inputhigh(self, value):
+        if type(value) is not bool:
+            raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
+        self.command('-inpol %d' % int(value))
+        self._inputhigh = value
+
 
     def set_active_modules(self, modules):
         self.command('-nmodules %d' % modules)
 
-    def set_output_high(self, value):
-        i = int(value)
-        if i not in[0,1]:
-            raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
-        self.command('outpol %d' %i)
-
-    # def set_input_high(self, value):
-    #     i = int(value)
-    #     if i not in[0,1]:
-    #         raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
-    #     self.command('outpol %d' %i)
-    #
-    def set_input_high(self, value):
-        i = int(value)
-        if i not in[0,1]:
-            raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
-        self.command('-inpol %d' % i)
 
     def set_delay_trigger(self, time):
         ntimes = long(time / 100e-9)
@@ -559,12 +618,6 @@ class Mythen(object):
     def set_delay_frame(self, time):
         ntimes = long(time / 100e-9)
         self.command('-delafter %d' % ntimes)
-
-    def set_gate(self, value):
-        i = int(value)
-        if i not in[0,1]:
-            raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
-        self.command('-gateen %d' % i)
 
     def set_num_gates(self, gates):
         self.command('-gates %d' % gates)
