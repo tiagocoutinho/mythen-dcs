@@ -780,6 +780,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
                 time.sleep(0.1)
             try:
                 self.raw_data = self.mythen.readout
+                self.push_change_event('RawData', self.raw_data)
                 self.image_data.append(self.raw_data.tolist())
                 self.frames_readies += 1
             except MythenError as e:
