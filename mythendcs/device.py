@@ -555,23 +555,6 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         return self.get_state() in (DEV_STATE_ON,)
 
     # ------------------------------------------------------------------
-    #   read & write ContinuousTrigger attribute
-    # ------------------------------------------------------------------
-    @ExceptionHandler
-    def read_ContinuousTrigger(self, the_att):
-        the_att.set_value(self.mythen.continuoustrigger)
-
-    @ExceptionHandler
-    def write_ContinuousTrigger(self, the_att):
-        data = []
-        the_att.get_write_value(data)
-        self.mythen.continuoustrigger = data[0]
-        self.push_change_event('ContinuousTrigger', data[0])
-
-    def is_ContinuousTrigger_allowed(self, req_type):
-        return self.get_state() in (DEV_STATE_ON,)
-
-    # ------------------------------------------------------------------
     #   read & write OutputHigh attribute
     # ------------------------------------------------------------------
     @ExceptionHandler
@@ -730,6 +713,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         hw_mask = self._get_hwmask()
         self.masks = []
         self.image_data = []
+        self.frames_readies = 0
         for i in range(self.NROIs):
             self.masks.append(self._roi2mask(i, hw_mask))
         self.set_state(DEV_STATE_RUNNING)
@@ -740,7 +724,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
             self.mythen.frames = 1
             self.set_status('Live Mode')
         else:
-            if self.mythen.frames == 1:
+            if not self.mythen.triggermode:
                 method = self._frame_acq
                 self.set_status('Acquisition Mode')
                 self.mythen.start()
@@ -774,7 +758,6 @@ class MythenDCSDevice(PyTango.Device_4Impl):
 
     def _multiframes_acq(self):
         self.mythen.start()
-        self.frames_readies = 0
         while True:
             while self.mythen.fifoempty and self.mythen.running:
                 time.sleep(0.1)
