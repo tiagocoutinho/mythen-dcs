@@ -726,11 +726,11 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         else:
             if not self.mythen.triggermode:
                 method = self._frame_acq
-                self.set_status('Acquisition Mode')
+                self.set_status('Acquisition Mode: Internal Trigger')
                 self.mythen.start()
             else:
                 method = self._multiframes_acq
-                self.set_status('MultiFrames Acquisition Mode')
+                self.set_status('Acquisition Mode: External Trigger')
 
         self.push_change_event('State', self.get_state())
         self.push_change_event('Status', self.get_status())
