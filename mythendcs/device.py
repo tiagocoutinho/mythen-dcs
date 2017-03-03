@@ -716,7 +716,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.frames_readies = 0
         for i in range(self.NROIs):
             self.masks.append(self._roi2mask(i, hw_mask))
-        self.set_state(DEV_STATE_RUNNING)
+        
         self.async = True
         if self.live_mode:
             self.stop_flag = False
@@ -727,16 +727,17 @@ class MythenDCSDevice(PyTango.Device_4Impl):
             if not self.mythen.triggermode:
                 method = self._frame_acq
                 self.set_status('Acquisition Mode: Internal Trigger')
-                self.mythen.start()
+                #self.mythen.start()
             else:
                 method = self._multiframes_acq
                 self.set_status('Acquisition Mode: External Trigger')
-
-        self.push_change_event('State', self.get_state())
-        self.push_change_event('Status', self.get_status())
+            self.mythen.start()    
         t = threading.Thread(target=method)
         t.start()
-
+        self.set_state(DEV_STATE_RUNNING)
+        self.push_change_event('State', self.get_state())
+        self.push_change_event('Status', self.get_status())
+        
     def _acq(self):
         print ('acquisition thread')
         self.raw_data = self.mythen.readout
@@ -757,7 +758,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.async = False
 
     def _multiframes_acq(self):
-        self.mythen.start()
+
         while True:
             while self.mythen.fifoempty and self.mythen.running:
                 time.sleep(0.1)
