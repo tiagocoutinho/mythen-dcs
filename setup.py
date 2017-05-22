@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 # The version is updated automatically with bumpversion
 # Do not update manually
-__version = '1.3.4-alpha'
+__version = '1.3.4'
 
 setup(
     name='MythenDCS',
