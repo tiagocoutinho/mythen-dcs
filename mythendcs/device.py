@@ -24,13 +24,12 @@
 # =============================================================================
 
 import PyTango
-from mythendcs import Mythen, UDP_PORT, TCP_PORT, COUNTER_BITS, \
-    SETTINGS_MODES, MythenError
 import threading
 import numpy as np
 import time
-from mythendcs import __version__
 
+from .core import Mythen, UDP_PORT, TCP_PORT, COUNTER_BITS, \
+    SETTINGS_MODES, MythenError
 
 DEV_STATE_UNKNOWN = PyTango.DevState.UNKNOWN
 DEV_STATE_FAULT = PyTango.DevState.FAULT

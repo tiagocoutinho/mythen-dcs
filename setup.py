@@ -1,13 +1,21 @@
-from distutils.core import setup
-from mythendcs import __version__
+from setuptools import setup, find_packages
+
+# The version is updated automatically with bumpversion
+# Do not update manually
+__version = '1.3.0'
 
 setup(
     name='MythenDCS',
-    version=__version__,
-    packages=['mythendcs'],
-    scripts=['script/MythenDCS', 'test/test_mythendcs_core.py'],
-    url='https://gitcomputing.cells.es/controls/mythen',
-    license='LGPL',
+    version=__version,
+    packages=find_packages(),
+    include_package_data=True,
+    
+    url='https://git.cells.es/controls/mythen',
+    license = "GPL3",
+    entry_points={
+        'console_scripts': [
+            'MythenDCS = mythendcs.server:main',
+        ]
     author='Roberto Homs Puron',
     author_email='rhoms@cells.com',
     description='Device server to control the MythenDCS1',
