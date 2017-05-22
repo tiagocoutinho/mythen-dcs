@@ -1,7 +1,2 @@
-setup.cfg
-setup.py
-mythendcs/__init__.py
-mythendcs/core.py
-mythendcs/device.py
-mythendcs/server.py
-
+exclude setup.cfg
+recursive-include *.py
