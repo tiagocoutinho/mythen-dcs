@@ -16,7 +16,7 @@ setup(
         'console_scripts': [
             'MythenDCS = mythendcs.server:main',
         ]
-    }
+    },
     author='Roberto Homs Puron',
     author_email='rhoms@cells.com',
     description='Device server to control the MythenDCS1',
