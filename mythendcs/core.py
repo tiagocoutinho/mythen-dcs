@@ -15,6 +15,7 @@ ERR_MYTHEN_READOUT = -42
 ERR_MYTHEN_SETTINGS = -43
 ERR_MYTHEN_BAD_PARAMETER = -44
 
+
 class MythenError(Exception):
     def __init__(self, value, *args):
         self.errcode = value
@@ -74,7 +75,7 @@ class MythenError(Exception):
                    % value)
         elif value == ERR_MYTHEN_SETTINGS:
             msg = ('Error %d: Return and unknown settings code (%d).'
-                   %(value, self.args[0]))
+                   % (value, self.args[0]))
         elif value == ERR_MYTHEN_BAD_PARAMETER:
             msg = 'Error %d: Bad parameter.' % value
         else:
@@ -82,7 +83,11 @@ class MythenError(Exception):
 
         return msg
 
-TRIGGER_TYPES=['INTERNAL','EXTERNAL_TRIGGER_MULTI', 'EXTERNAL_TRIGGER_START', ]
+
+TRIGGER_TYPES = ['INTERNAL', 'EXTERNAL_TRIGGER_MULTI',
+                 'EXTERNAL_TRIGGER_START', ]
+
+
 class Mythen(object):
     """
     Class to control the Mythen. Exported API:
@@ -116,7 +121,6 @@ class Mythen(object):
         self.outputhigh = True
         self.continuoustrigger = False
 
-
     def _send_msg(self, cmd):
         """
         :param cmd: Command
@@ -124,7 +128,7 @@ class Mythen(object):
         """
         try:
             self.mythen_socket.sendto(cmd, self.socket_conf)
-        except socket.timeout as e:
+        except socket.timeout:
             raise MythenError(ERR_MYTHEN_COMM_TIMEOUT)
 
     def _receive_msg(self):
@@ -133,7 +137,7 @@ class Mythen(object):
         """
         try:
             result, socket_rsv = self.mythen_socket.recvfrom(self.buff)
-        except socket.timeout as e:
+        except socket.timeout:
             raise MythenError(ERR_MYTHEN_COMM_TIMEOUT)
 
         return result
@@ -196,6 +200,7 @@ class Mythen(object):
         if value <= 0:
             raise ValueError('The value should be greater than 0')
         self.command('-autosettings %f' % value)
+
     # ------------------------------------------------------------------
     #   Bad Channels
     # ------------------------------------------------------------------
@@ -221,7 +226,6 @@ class Mythen(object):
         raw_value = self.command('-get badchannelinterpolation')
         value = self._to_int(raw_value)[0]
         return bool(value)
-
 
     @badchnintrpl.setter
     def badchnintrpl(self, value):
@@ -446,7 +450,7 @@ class Mythen(object):
         :return:
         """
         if type(value) != bool:
-           raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
+            raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
         self.command('-ratecorrection %d' % int(value))
 
     # ------------------------------------------------------------------
@@ -606,10 +610,8 @@ class Mythen(object):
         self.command('-inpol %d' % int(value))
         self._inputhigh = value
 
-
     def set_active_modules(self, modules):
         self.command('-nmodules %d' % modules)
-
 
     def set_delay_trigger(self, time):
         ntimes = long(time / 100e-9)
@@ -624,6 +626,3 @@ class Mythen(object):
 
     def __del__(self):
         self.mythen_socket.close()
-
-
-

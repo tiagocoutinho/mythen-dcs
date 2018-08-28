@@ -4,6 +4,7 @@ from .device import MythenDCSClass, MythenDCSDevice
 
 SERVER_NAME = 'MythenDCS'
 
+
 def main():
 
     try:
@@ -19,5 +20,6 @@ def main():
     except Exception, e:
         print '-------> An unforeseen exception occurred....', e
 
+
 if __name__ == '__main__':
-    run()
+    main()
