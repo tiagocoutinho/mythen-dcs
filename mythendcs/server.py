@@ -1,6 +1,7 @@
 import sys
 from PyTango import Util, DevFailed
 from .device import MythenDCSClass, MythenDCSDevice
+from .__init__ import version
 
 SERVER_NAME = 'MythenDCS'
 
@@ -8,6 +9,7 @@ SERVER_NAME = 'MythenDCS'
 def main():
 
     try:
+        print('Running MythenDCS version: {0}'.format(version))
         # TODO use argparser
         util = Util(sys.argv)
         util.add_class(MythenDCSClass, MythenDCSDevice)
