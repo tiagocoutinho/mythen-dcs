@@ -749,6 +749,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
             print self.roi_data[i]
             attr_name = 'ROI%dData' % (i+1)
             self.push_change_event(attr_name, self.roi_data[i])
+        self.frames_readies += 1
 
     def _acq_end(self):
         self.set_state(DEV_STATE_ON)
