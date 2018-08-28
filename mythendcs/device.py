@@ -193,7 +193,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.live_mode = False
         self.async = False
         self.raw_data = np.zeros(1280)
-        self.image_data = []
+        self.image_data = np.array([])
         self.stop_flag = False
         self.roi_data = []
         self.rois = []
@@ -739,7 +739,10 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         print ('acquisition thread')
         self.raw_data = self.mythen.readout
         self.push_change_event('RawData', self.raw_data)
-        self.image_data.append(self.raw_data.tolist())
+        if len(self.image_data) == 0:
+            self.image_data = self.raw_data.copy()
+        else:
+            self.image_data = np.vstack((self.image_data, self.raw_data))
         for i in range(self.NROIs):
             new_data = np.ma.MaskedArray(self.raw_data, self.masks[i])
             self.roi_data[i] = np.uint64(new_data.sum())
@@ -762,7 +765,12 @@ class MythenDCSDevice(PyTango.Device_4Impl):
             try:
                 self.raw_data = self.mythen.readout
                 self.push_change_event('RawData', self.raw_data)
-                self.image_data.append(self.raw_data.tolist())
+                if len(self.image_data) == 0:
+                    self.image_data = self.raw_data.copy()
+                else:
+                    self.image_data = np.vstack((self.image_data,
+                                                 self.raw_data))
+
                 self.frames_readies += 1
             except MythenError as e:
                 print 'error!!!!!!!!!!!!!!!!!!!!!!11\n\n', e
