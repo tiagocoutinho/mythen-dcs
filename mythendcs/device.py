@@ -709,7 +709,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.raw_data = None
         hw_mask = self._get_hwmask()
         self.masks = []
-        self.image_data = []
+        self.image_data = np.array([])
         self.frames_readies = 0
         for i in range(self.NROIs):
             self.masks.append(self._roi2mask(i, hw_mask))
