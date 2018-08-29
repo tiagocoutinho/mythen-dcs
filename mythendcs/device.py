@@ -27,6 +27,7 @@ import PyTango
 import threading
 import numpy as np
 import time
+import json
 
 from .core import Mythen, UDP_PORT, TCP_PORT, COUNTER_BITS, \
     SETTINGS_MODES, MythenError
@@ -78,6 +79,13 @@ class MythenDCSClass(PyTango.DeviceClass):
                          [PyTango.DevVoid, 'None']],
                 'AutoSettings': [[PyTango.DevDouble, 'None'],
                                  [PyTango.DevVoid, 'None']],
+                'GetROIBuffer': [[PyTango.CmdArgType.DevVarLong64Array,
+                                  'None'],
+                                 [PyTango.CmdArgType.DevVarLong64Array,
+                                  'None']],
+                'GetRawBuffer': [[PyTango.CmdArgType.DevLong64, 'None'],
+                                 [PyTango.CmdArgType.DevString,
+                                  'None']]
 
                 }
 
@@ -163,6 +171,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
 
         PyTango.Device_4Impl.__init__(self, cl, name)
         self.info_stream('In MythenDCSDevice.__init__')
+        self.rois_buffer_names = '_roi{0}_buffer'
         try:
             self.init_device()
         except Exception as e:
@@ -214,6 +223,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.set_change_event('Tau', True, False)
         self.set_change_event('IntTime', True, False)
         self.set_change_event('Frames', True, False)
+        self.set_change_event('FramesReadies', True, False)
         self.set_change_event('Threshold', True, False)
         self.set_change_event('LiveMode', True, False)
         self.set_change_event('State', True, False)
@@ -233,6 +243,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         attr_roilow_name = 'ROI{0}Low'
         attr_roihigh_name = 'ROI{0}High'
         attr_roidata_name = 'ROI{0}Data'
+        attr_roibuffer_name = 'ROI{0}Buffer'
 
         for roi in range(1, self.NROIs+1):
             # ROI result
@@ -242,6 +253,19 @@ class MythenDCSDevice(PyTango.Device_4Impl):
 
             self.add_attribute(attr_roidata, self.read_ROIData, None,
                                self.is_ROIData_allowed)
+            # ROI Buffer
+            # ROI result
+            attr_roibuffer_dict = {'dtype': PyTango.ArgType.DevULong64,
+                                   'dformat': PyTango.AttrDataFormat.SPECTRUM,
+                                   'max_dim_x': 30000,
+                                   }
+            attr = PyTango.AttrData(attr_roibuffer_name.format(roi),
+                                    'MythenDCSDevice')
+            attr_roibuffer = attr.build_from_dict(attr_roibuffer_dict)
+            self.clean_rois_buffers(roi)
+
+            self.add_attribute(attr_roibuffer, self.read_ROIBuffer, None,
+                               self.is_ROIBuffer_allowed)
 
             # Low value of the ROI
             attr_roilow = PyTango.Attr(attr_roilow_name.format(roi),
@@ -269,6 +293,10 @@ class MythenDCSDevice(PyTango.Device_4Impl):
             self.set_change_event(attr_roilow_name.format(roi), True, False)
             self.set_change_event(attr_roihigh_name.format(roi), True, False)
             self.set_change_event(attr_roidata_name.format(roi), True, False)
+
+    def clean_rois_buffers(self, roi):
+        self.__setattr__(self.rois_buffer_names.format(roi),
+                         np.array([], dtype='int64'))
 
     # ------------------------------------------------------------------
     #   State machine implementation
@@ -644,6 +672,19 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING)
 
     # ------------------------------------------------------------------
+    #   read ROIData attribute
+    # ------------------------------------------------------------------
+    def read_ROIBuffer(self, the_att):
+        attr_name = the_att.get_name()
+        nroi = int(attr_name[3])
+
+        value = self.__getattribute__(self.rois_buffer_names.format(nroi))
+        the_att.set_value(value)
+
+    def is_ROIBuffer_allowed(self, req_type):
+        return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING)
+
+    # ------------------------------------------------------------------
     #   read & write Threshold attribute
     # ------------------------------------------------------------------
     @ExceptionHandler
@@ -711,8 +752,9 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.masks = []
         self.image_data = np.array([])
         self.frames_readies = 0
-        for i in range(self.NROIs):
-            self.masks.append(self._roi2mask(i, hw_mask))
+        for roi in range(self.NROIs):
+            self.masks.append(self._roi2mask(roi, hw_mask))
+            self.clean_rois_buffers(roi)
 
         self.async = True
         if self.live_mode:
@@ -743,13 +785,21 @@ class MythenDCSDevice(PyTango.Device_4Impl):
             self.image_data = self.raw_data.copy()
         else:
             self.image_data = np.vstack((self.image_data, self.raw_data))
-        for i in range(self.NROIs):
-            new_data = np.ma.MaskedArray(self.raw_data, self.masks[i])
-            self.roi_data[i] = np.uint64(new_data.sum())
-            print self.roi_data[i]
-            attr_name = 'ROI%dData' % (i+1)
-            self.push_change_event(attr_name, self.roi_data[i])
+        self._calc_rois()
         self.frames_readies += 1
+        self.push_change_event('FramesReadies', self.frames_readies)
+
+    def _calc_rois(self):
+            data_masked = np.ma.MaskedArray(self.raw_data)
+            for roi_nr in range(self.NROIs):
+                data_masked.mask = self.masks[roi_nr]
+                self.roi_data[roi_nr] = np.uint64(data_masked.sum())
+                attr_name = self.rois_buffer_names.format(roi_nr+1)
+                roi_buffer = self.__getattribute__(attr_name)
+                roi_buffer = np.append(roi_buffer, self.roi_data[roi_nr])
+                self.__setattr__(attr_name, roi_buffer)
+                attr_name = 'ROI%dData' % (roi_nr + 1)
+                self.push_change_event(attr_name, self.roi_data[roi_nr])
 
     def _acq_end(self):
         self.set_state(DEV_STATE_ON)
@@ -759,7 +809,6 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.async = False
 
     def _multiframes_acq(self):
-
         while True:
             while self.mythen.fifoempty and self.mythen.running:
                 time.sleep(0.1)
@@ -771,8 +820,10 @@ class MythenDCSDevice(PyTango.Device_4Impl):
                 else:
                     self.image_data = np.vstack((self.image_data,
                                                  self.raw_data))
-
+                self._calc_rois()
                 self.frames_readies += 1
+                self.push_change_event('FramesReadies', self.frames_readies)
+
             except MythenError as e:
                 print 'error!!!!!!!!!!!!!!!!!!!!!!11\n\n', e
                 break
@@ -840,7 +891,6 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         t.start()
 
     def _autosettings(self, value):
-        print value
         self.mythen.autosettings(value)
         settings = self.mythen.settings
         settings_mode = self.mythen.settingsmode
@@ -848,3 +898,25 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.push_change_event('SettingsMode', settings_mode)
         self.set_state(DEV_STATE_ON)
         self.async = False
+
+    @ExceptionHandler
+    def GetROIBuffer(self, value):
+        if len(value) != 2:
+            raise ValueError('Wrong array: [ROI Number, Start Frame]')
+        roi = int(value[0])
+        if roi > self.NROIs:
+            raise ValueError('There are {0} ROIs'.format(self.NROIs))
+        frame = int(value[1] - 1)
+        roi_buffer = self.__getattribute__(self.rois_buffer_names.format(roi))
+        return roi_buffer[frame:]
+
+    def is_GetROIBuffer_allowed(self):
+        return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING)
+
+    @ExceptionHandler
+    def GetRawBuffer(self, value):
+        frame = int(value)
+        return json.dumps(self.image_data[frame:].tolist())
+
+    def is_GetRawBuffer_allowed(self):
+        return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING)
