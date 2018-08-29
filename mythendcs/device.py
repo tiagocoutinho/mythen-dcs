@@ -218,6 +218,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.set_change_event('Tau', True, False)
         self.set_change_event('IntTime', True, False)
         self.set_change_event('Frames', True, False)
+        self.set_change_event('FramesReadies', True, False)
         self.set_change_event('Threshold', True, False)
         self.set_change_event('LiveMode', True, False)
         self.set_change_event('State', True, False)
@@ -781,6 +782,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
             self.image_data = np.vstack((self.image_data, self.raw_data))
         self._calc_rois()
         self.frames_readies += 1
+        self.push_change_event('FramesReadies', self.frames_readies)
 
     def _calc_rois(self):
             data_masked = np.ma.MaskedArray(self.raw_data)
@@ -802,7 +804,6 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.async = False
 
     def _multiframes_acq(self):
-
         while True:
             while self.mythen.fifoempty and self.mythen.running:
                 time.sleep(0.1)
@@ -816,6 +817,8 @@ class MythenDCSDevice(PyTango.Device_4Impl):
                                                  self.raw_data))
                 self._calc_rois()
                 self.frames_readies += 1
+                self.push_change_event('FramesReadies', self.frames_readies)
+
             except MythenError as e:
                 print 'error!!!!!!!!!!!!!!!!!!!!!!11\n\n', e
                 break
