@@ -27,6 +27,7 @@ import PyTango
 import threading
 import numpy as np
 import time
+import json
 
 from .core import Mythen, UDP_PORT, TCP_PORT, COUNTER_BITS, \
     SETTINGS_MODES, MythenError
@@ -81,7 +82,11 @@ class MythenDCSClass(PyTango.DeviceClass):
                 'GetROIBuffer': [[PyTango.CmdArgType.DevVarLong64Array,
                                   'None'],
                                  [PyTango.CmdArgType.DevVarLong64Array,
+                                  'None']],
+                'GetRawBuffer': [[PyTango.CmdArgType.DevLong64, 'None'],
+                                 [PyTango.CmdArgType.DevString,
                                   'None']]
+
                 }
 
     # Attributes list
@@ -906,4 +911,12 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         return roi_buffer[frame:]
 
     def is_GetROIBuffer_allowed(self):
+        return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING)
+
+    @ExceptionHandler
+    def GetRawBuffer(self, value):
+        frame = int(value)
+        return json.dumps(self.image_data[frame:].tolist())
+
+    def is_GetRawBuffer_allowed(self):
         return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING)
