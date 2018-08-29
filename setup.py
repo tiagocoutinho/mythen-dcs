@@ -8,25 +8,39 @@ long_description = 'Tango Device Server (DS) to have the remote control of '\
                    'acquisition method and the live mode to acquire in real' \
                    'time. In addition it exports as attributes the '\
                    'configuration parameters.'
+
 setup(
-    name='MythenDCS',
+    name="MythenDCS",
+    description="Device server to control the MythenDCS1",
     version=__version,
+    author="Roberto J. Homs Puron",
+    author_email="rhoms@cells.es",
+    url="https://git.cells.es/controls/mythen",
     packages=find_packages(),
+    package_data={},
     include_package_data=True,
-    
-    url='https://git.cells.es/controls/mythen',
-    license = "GPL3",
+    license="GPL3",
+    long_description=long_description,
+    classifiers=[
+        'Development Status :: 5 - Production/Stable',
+        'Intended Audience :: Developers',
+        'Intended Audience :: End Users/Desktop',
+        'License :: OSI Approved :: Python Software Foundation License',
+        'Natural Language :: English',
+        'Operating System :: POSIX',
+        'Operating System :: Microsoft :: Windows',
+        'Programming Language :: Python',
+        'Topic :: Communications',
+        'Topic :: Software Development :: Libraries',
+    ],
     entry_points={
         'console_scripts': [
-            'MythenDCS = mythendcs.server:main',
+            'MythenDCS = mythendcs.server:main'
         ]
-    author='Roberto Homs Puron',
-    author_email='rhoms@cells.com',
-    description='Device server to control the MythenDCS1',
-    long_description=long_description,
-    release='1',
+    },
     requires=['numpy (>=1.1)', 'PyTango (>=7.1)'],
-    conflicts=[''],
-    )
+    conflicts=['']
+)
+
 
 
