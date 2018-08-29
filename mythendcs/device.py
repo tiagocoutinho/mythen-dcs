@@ -78,7 +78,10 @@ class MythenDCSClass(PyTango.DeviceClass):
                          [PyTango.DevVoid, 'None']],
                 'AutoSettings': [[PyTango.DevDouble, 'None'],
                                  [PyTango.DevVoid, 'None']],
-
+                'GetROIBuffer': [[PyTango.CmdArgType.DevVarLong64Array,
+                                  'None'],
+                                 [PyTango.CmdArgType.DevVarLong64Array,
+                                  'None']]
                 }
 
     # Attributes list
@@ -887,3 +890,17 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.push_change_event('SettingsMode', settings_mode)
         self.set_state(DEV_STATE_ON)
         self.async = False
+
+    @ExceptionHandler
+    def GetROIBuffer(self, value):
+        if len(value) != 2:
+            raise ValueError('Wrong array: [ROI Number, Start Frame]')
+        roi = int(value[0])
+        if roi > self.NROIs:
+            raise ValueError('There are {0} ROIs'.format(self.NROIs))
+        frame = int(value[1] - 1)
+        roi_buffer = self.__getattribute__(self.rois_buffer_names.format(roi))
+        return roi_buffer[frame:]
+
+    def is_GetROIBuffer_allowed(self):
+        return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING)
