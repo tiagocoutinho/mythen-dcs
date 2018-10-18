@@ -778,7 +778,6 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.push_change_event('Status', self.get_status())
 
     def _acq(self):
-        print ('acquisition thread')
         self.raw_data = self.mythen.readout
         self.push_change_event('RawData', self.raw_data)
         if len(self.image_data) == 0:
@@ -824,8 +823,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
                 self.frames_readies += 1
                 self.push_change_event('FramesReadies', self.frames_readies)
 
-            except MythenError as e:
-                print 'error!!!!!!!!!!!!!!!!!!!!!!11\n\n', e
+            except MythenError:
                 break
         self._acq_end()
 
