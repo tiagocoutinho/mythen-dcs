@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 # The version is updated automatically with bumpversion
 # Do not update manually
-__version = '1.4.1'
+__version = '1.4.2'
 long_description = 'Tango Device Server (DS) to have the remote control of '\
                    'the Mythen DCS1 detector.\n The DS implement the '\
                    'acquisition method and the live mode to acquire in real' \
