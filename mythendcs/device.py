@@ -754,7 +754,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.frames_readies = 0
         for roi in range(self.NROIs):
             self.masks.append(self._roi2mask(roi, hw_mask))
-            self.clean_rois_buffers(roi)
+            self.clean_rois_buffers(roi+1)
 
         self.async = True
         if self.live_mode:
