@@ -233,7 +233,6 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.set_change_event('ContinuousTrigger', True, False)
         self.set_change_event('OutputHigh', True, False)
         self.set_change_event('InputHigh', True, False)
-
         self.dyn_attr()
 
     # ------------------------------------------------------------------
@@ -761,6 +760,8 @@ class MythenDCSDevice(PyTango.Device_4Impl):
             self.stop_flag = False
             method = self._livemode
             self.mythen.frames = 1
+            self.mythen.triggermode = False
+            self.mythen.continuoustrigger = False
             self.set_status('Live Mode')
         else:
             if not self.mythen.triggermode:
