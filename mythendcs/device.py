@@ -202,15 +202,17 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.live_mode = False
         self.async = False
         self.raw_data = np.zeros(1280)
-        self.image_data = np.array([])
+        self.image_data = np.zeros((1, 1280))
         self.stop_flag = False
         self.roi_data = []
         self.rois = []
+        self.rois_buffer = []
         for i in range(self.NROIs):
             data = 0
             rois = [0, Mythen.MAX_CHANNELS]
             self.roi_data.append(data)
             self.rois.append(rois)
+            self.rois_buffer.append(np.zeros(1))
 
         # Define events on attributes
         self.set_change_event('RawData', True, False)
@@ -261,7 +263,6 @@ class MythenDCSDevice(PyTango.Device_4Impl):
             attr = PyTango.AttrData(attr_roibuffer_name.format(roi),
                                     'MythenDCSDevice')
             attr_roibuffer = attr.build_from_dict(attr_roibuffer_dict)
-            self.clean_rois_buffers(roi)
 
             self.add_attribute(attr_roibuffer, self.read_ROIBuffer, None,
                                self.is_ROIBuffer_allowed)
@@ -292,10 +293,6 @@ class MythenDCSDevice(PyTango.Device_4Impl):
             self.set_change_event(attr_roilow_name.format(roi), True, False)
             self.set_change_event(attr_roihigh_name.format(roi), True, False)
             self.set_change_event(attr_roidata_name.format(roi), True, False)
-
-    def clean_rois_buffers(self, roi):
-        self.__setattr__(self.rois_buffer_names.format(roi),
-                         np.array([], dtype='int64'))
 
     # ------------------------------------------------------------------
     #   State machine implementation
@@ -675,10 +672,8 @@ class MythenDCSDevice(PyTango.Device_4Impl):
     # ------------------------------------------------------------------
     def read_ROIBuffer(self, the_att):
         attr_name = the_att.get_name()
-        nroi = int(attr_name[3])
-
-        value = self.__getattribute__(self.rois_buffer_names.format(nroi))
-        the_att.set_value(value)
+        nroi = int(attr_name[3]) - 1
+        the_att.set_value(self.rois_buffer[nroi][:self.frames_readies])
 
     def is_ROIBuffer_allowed(self, req_type):
         return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING)
@@ -705,7 +700,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
     # ------------------------------------------------------------------
     @ExceptionHandler
     def read_ImageData(self, the_att):
-        the_att.set_value(self.image_data)
+        the_att.set_value(self.image_data[self.frames_readies])
 
     def is_ImageData_allowed(self, req_type):
         return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING)
@@ -747,27 +742,32 @@ class MythenDCSDevice(PyTango.Device_4Impl):
     @ExceptionHandler
     def Start(self):
         self.raw_data = None
-        hw_mask = self._get_hwmask()
-        self.masks = []
-        self.image_data = np.array([])
-        self.frames_readies = 0
-        for roi in range(self.NROIs):
-            self.masks.append(self._roi2mask(roi, hw_mask))
-            self.clean_rois_buffers(roi+1)
-
+        self.stop_flag = False
         self.async = True
         if self.live_mode:
-            self.stop_flag = False
-            method = self._livemode
             self.mythen.frames = 1
             self.mythen.triggermode = False
             self.mythen.continuoustrigger = False
+            self.push_change_event('Frames', 1)
+            self.push_change_event('TriggerMode', False)
+            self.push_change_event('ContinuousTrigger', False)
+
+
+        hw_mask = self._get_hwmask()
+        self.masks = []
+        self.image_data = np.zeros((self.mythen.frames, 1280))
+        self.frames_readies = 0
+        for roi in range(self.NROIs):
+            self.masks.append(self._roi2mask(roi, hw_mask))
+            self.rois_buffer[roi] = np.zeros(self.mythen.frames, 'int64')
+
+        if self.live_mode:
+            method = self._livemode
             self.set_status('Live Mode')
         else:
             if not self.mythen.triggermode:
                 method = self._frame_acq
                 self.set_status('Acquisition Mode: Internal Trigger')
-                # self.mythen.start()
             else:
                 method = self._multiframes_acq
                 self.set_status('Acquisition Mode: External Trigger')
@@ -781,25 +781,26 @@ class MythenDCSDevice(PyTango.Device_4Impl):
     def _acq(self):
         self.raw_data = self.mythen.readout
         self.push_change_event('RawData', self.raw_data)
-        if len(self.image_data) == 0:
-            self.image_data = self.raw_data.copy()
-        else:
-            self.image_data = np.vstack((self.image_data, self.raw_data))
+        frame = self.frames_readies
+        if self.live_mode:
+            frame = 0
+        self.image_data[frame] = self.raw_data
         self._calc_rois()
         self.frames_readies += 1
         self.push_change_event('FramesReadies', self.frames_readies)
 
     def _calc_rois(self):
-            data_masked = np.ma.MaskedArray(self.raw_data)
-            for roi_nr in range(self.NROIs):
-                data_masked.mask = self.masks[roi_nr]
-                self.roi_data[roi_nr] = np.uint64(data_masked.sum())
-                attr_name = self.rois_buffer_names.format(roi_nr+1)
-                roi_buffer = self.__getattribute__(attr_name)
-                roi_buffer = np.append(roi_buffer, self.roi_data[roi_nr])
-                self.__setattr__(attr_name, roi_buffer)
-                attr_name = 'ROI%dData' % (roi_nr + 1)
-                self.push_change_event(attr_name, self.roi_data[roi_nr])
+        data_masked = np.ma.MaskedArray(self.raw_data)
+        for roi_nr in range(self.NROIs):
+            data_masked.mask = self.masks[roi_nr]
+            roi_value = np.uint64(data_masked.sum())
+            self.roi_data[roi_nr] = roi_value
+            frame = self.frames_readies
+            if self.live_mode:
+                frame = 0
+            self.rois_buffer[roi_nr][frame] = roi_value
+            attr_name = 'ROI%dData' % (roi_nr + 1)
+            self.push_change_event(attr_name, self.roi_data[roi_nr])
 
     def _acq_end(self):
         self.set_state(DEV_STATE_ON)
@@ -813,17 +814,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
             while self.mythen.fifoempty and self.mythen.running:
                 time.sleep(0.1)
             try:
-                self.raw_data = self.mythen.readout
-                self.push_change_event('RawData', self.raw_data)
-                if len(self.image_data) == 0:
-                    self.image_data = self.raw_data.copy()
-                else:
-                    self.image_data = np.vstack((self.image_data,
-                                                 self.raw_data))
-                self._calc_rois()
-                self.frames_readies += 1
-                self.push_change_event('FramesReadies', self.frames_readies)
-
+                self._acq()
             except MythenError:
                 break
         self._acq_end()
@@ -906,8 +897,9 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         if roi > self.NROIs:
             raise ValueError('There are {0} ROIs'.format(self.NROIs))
         frame = int(value[1] - 1)
-        roi_buffer = self.__getattribute__(self.rois_buffer_names.format(roi))
-        return roi_buffer[frame:]
+        roi -= 1
+        data = self.rois_buffer[roi][frame:self.frames_readies]
+        return data
 
     def is_GetROIBuffer_allowed(self):
         return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING)
