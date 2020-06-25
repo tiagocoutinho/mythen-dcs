@@ -316,8 +316,8 @@ class MythenDCSDevice(PyTango.Device_4Impl):
     def always_executed_hook(self):
         self.info_stream('In %s::always_executed_hook()' % self.get_name())
         self.state_machine()
-        self.push_change_event('State', self.get_state())
-        self.push_change_event('Status', self.get_status())
+        self.push_change_event('State')
+        self.push_change_event('Status')
 
     # ------------------------------------------------------------------
     #   ATTRIBUTES
@@ -775,8 +775,8 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         t = threading.Thread(target=method)
         t.start()
         self.set_state(DEV_STATE_RUNNING)
-        self.push_change_event('State', self.get_state())
-        self.push_change_event('Status', self.get_status())
+        self.push_change_event('State')
+        self.push_change_event('Status')
 
     def _acq(self):
         self.raw_data = self.mythen.readout
@@ -805,8 +805,8 @@ class MythenDCSDevice(PyTango.Device_4Impl):
     def _acq_end(self):
         self.set_state(DEV_STATE_ON)
         self.set_status('ON')
-        self.push_change_event('State', self.get_state())
-        self.push_change_event('Status', self.get_status())
+        self.push_change_event('State')
+        self.push_change_event('Status')
         self.async = False
 
     def _multiframes_acq(self):
@@ -844,8 +844,8 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.async = True
         self.set_state(DEV_STATE_INIT)
         self.set_status('Resetting....')
-        self.push_change_event('State', self.get_state())
-        self.push_change_event('Status', self.get_status())
+        self.push_change_event('State')
+        self.push_change_event('Status')
         t = threading.Thread(target=self._reset)
         t.start()
 
@@ -864,8 +864,8 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.push_change_event('LiveMode', self.live_mode)
         self.set_state(DEV_STATE_ON)
         self.set_status('ON')
-        self.push_change_event('State', self.get_state())
-        self.push_change_event('Status', self.get_status())
+        self.push_change_event('State')
+        self.push_change_event('Status')
         self.async = False
 
     def is_Reset_allowed(self):
