@@ -314,7 +314,7 @@ class Mythen(object):
         :return:
         """
         # Exposure value in units of 100ns.
-        ntimes = long(value / 100e-9)
+        ntimes = int(value / 100e-9)
         self.command('-time %d' % ntimes)
 
     # ------------------------------------------------------------------
@@ -327,7 +327,7 @@ class Mythen(object):
         return value
 
     def set_module(self, value):
-        if value not in range(self.nmod):
+        if value not in list(range(self.nmod)):
             raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
         self.command('-module %d' % value)
 
@@ -614,11 +614,11 @@ class Mythen(object):
         self.command('-nmodules %d' % modules)
 
     def set_delay_trigger(self, time):
-        ntimes = long(time / 100e-9)
+        ntimes = int(time / 100e-9)
         self.command('-delbef %d' % ntimes)
 
     def set_delay_frame(self, time):
-        ntimes = long(time / 100e-9)
+        ntimes = int(time / 100e-9)
         self.command('-delafter %d' % ntimes)
 
     def set_num_gates(self, gates):

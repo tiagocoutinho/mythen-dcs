@@ -9,7 +9,7 @@ SERVER_NAME = 'MythenDCS'
 def main():
 
     try:
-        print('Running MythenDCS version: {0}'.format(version))
+        print(('Running MythenDCS version: {0}'.format(version)))
         # TODO use argparser
         util = Util(sys.argv)
         util.add_class(MythenDCSClass, MythenDCSDevice)
@@ -17,10 +17,10 @@ def main():
         U.server_init()
         U.server_run()
 
-    except DevFailed, e:
-        print '-------> Received a DevFailed exception:', e
-    except Exception, e:
-        print '-------> An unforeseen exception occurred....', e
+    except DevFailed as e:
+        print('-------> Received a DevFailed exception:', e)
+    except Exception as e:
+        print('-------> An unforeseen exception occurred....', e)
 
 
 if __name__ == '__main__':

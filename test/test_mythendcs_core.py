@@ -81,7 +81,7 @@ if __name__ == '__main__':
     errors = len(result.errors)
     failures = len(result.failures)
 
-    print '\n' * 2, '=' * 80
-    print 'Results '
-    print 'Error: ', errors
-    print 'Failures: ', failures
+    print('\n' * 2, '=' * 80)
+    print('Results ')
+    print('Error: ', errors)
+    print('Failures: ', failures)
