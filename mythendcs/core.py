@@ -95,22 +95,22 @@ TRIGGER_TYPES = ['INTERNAL', 'EXTERNAL_TRIGGER_MULTI',
 
 def ensure_connection(f):
 
-    def reconnect(conn):
-        if conn.socket is None:
-            conn.connect()
-            return True
-        return False
-
     @functools.wraps(f)
     def wrapper(self, *args, **kwargs):
-        just_connected = reconnect(self)
+        just_connected = False
+        if self.socket is None:
+            self.connect()
+            just_connected =True
         if self.kind == UDP or just_connected:
             return f(self, *args, **kwargs)
         try:
             result = f(self, *args, **kwargs)
             if result is b'':
-                raise OSError('remote end disconnected')
+                raise ConnectionError('remote end disconnected')
             return result
+        except socket.timeout:
+            self.disconnect()
+            raise
         except OSError:
             self.connect()
             return f(self, *args, **kwargs)
@@ -190,6 +190,7 @@ class Channel:
 to_int = struct.Struct("<i").unpack
 to_long_long = struct.Struct("<q").unpack
 to_float = struct.Struct("<f").unpack
+
 
 def _to_int_list(self, raw_value):
     fmt = "<%di" % (len(raw_value) // 4)
