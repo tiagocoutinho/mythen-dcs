@@ -207,14 +207,20 @@ class Channel:
             self.fobj.write(data)
             self._read_exactly_into(buff)
 
-to_int = struct.Struct("<i").unpack
-to_long_long = struct.Struct("<q").unpack
-to_float = struct.Struct("<f").unpack
+
+def to_int(d):
+    return struct.unpack_from("<i", d)[0]
 
 
-def _to_int_list(self, raw_value):
-    fmt = "<%di" % (len(raw_value) // 4)
-    return np.array(struct.unpack(fmt, raw_value))
+def to_long_long(d):
+    return struct.unpack_from("<q", d)[0]
+
+
+def to_float(d):
+    return struct.unpack_from("<f", d)[0]
+
+
+to_int_list = functools.partial(np.frombuffer, dtype="<i4")
 
 
 class Mythen:
@@ -231,12 +237,7 @@ class Mythen:
     def __init__(self, channel, nmod=1):
         """
         :param channel
-        :param port: UDP_PORT or TCP_PORT
-        :param timeout:
         :param nmod: Number of modules
-        :return:          self.conn.write(cmd.encode() if isinstance(cmd, str) else cmd)
-      self.conn.write(cmd.encode() if isinstance(cmd, str) else cmd)
-
         """
         self.channel = channel
         self.buff = nmod * self.MAX_BUFF_SIZE_MODULE
@@ -260,19 +261,6 @@ class Mythen:
         except socket.timeout:
             raise MythenError(ERR_MYTHEN_COMM_TIMEOUT)
 
-    def _to_int(self, raw_value):
-        return struct.unpack('i', raw_value)
-
-    def _to_int_list(self, raw_value):
-        fmt = "<%di" % (len(raw_value) // 4)
-        return np.array(struct.unpack(fmt, raw_value))
-
-    def _to_long_long(self, raw_value):
-        return struct.unpack('<q', raw_value)
-
-    def _to_float(self, raw_value):
-        return struct.unpack('f', raw_value)
-
     # ------------------------------------------------------------------
     #   Commands
     # ------------------------------------------------------------------
@@ -290,7 +278,7 @@ class Mythen:
 
         # sizeof(int)
         if len(raw_value) == 4:
-            value = self._to_int(raw_value)[0]
+            value = to_int(raw_value)
             if value < 0:
                 raise MythenError(value)
         return raw_value
@@ -333,7 +321,7 @@ class Mythen:
         :return: Numpy array with the bad channels defined in the hardware.
         """
         raw_value = self.command('-get badchannels')
-        values = self._to_int_list(raw_value)
+        values = to_int_list(raw_value)
         if len(values) != self.nchannels:
             raise MythenError(ERR_MYTHEN_COMM_LENGTH)
         return values
@@ -347,7 +335,7 @@ class Mythen:
         :return: State of the bad channels interpolation.
         """
         raw_value = self.command('-get badchannelinterpolation')
-        value = self._to_int(raw_value)[0]
+        value = to_int(raw_value)
         return bool(value)
 
     @badchnintrpl.setter
@@ -370,7 +358,7 @@ class Mythen:
         :return: Numpy array with the flat field value per each channels.
         """
         raw_value = self.command('-get flatfield')
-        values = self._to_int_list(raw_value)
+        values = to_int_list(raw_value)
         if len(values) != self.nchannels:
             raise MythenError(ERR_MYTHEN_COMM_LENGTH)
         return values
@@ -384,7 +372,7 @@ class Mythen:
         :return: State of the flat field correction.
         """
         raw_value = self.command('-get flatfieldcorrection')
-        value = self._to_int(raw_value)[0]
+        value = to_int(raw_value)
         return bool(value)
 
     @flatfield.setter
@@ -426,7 +414,7 @@ class Mythen:
         :return: Integration time in seconds.
         """
         raw_value = self.command('-get time')
-        value = self._to_long_long(raw_value)[0]
+        value = to_long_long(raw_value)
         value *= 100e-9  # Time in seconds
         return value
 
@@ -446,7 +434,7 @@ class Mythen:
 
     def get_active_modules(self):
         raw_value = self.command('-get nmodules')
-        value = self._to_int(raw_value)[0]
+        value = to_int(raw_value)
         return value
 
     def set_module(self, value):
@@ -463,7 +451,7 @@ class Mythen:
         :return: String with the current settings: Standard, Highgain or Fast.
         """
         raw_value = self.command('-get settings')
-        value = self._to_int(raw_value)[0]
+        value = to_int(raw_value)
         if value == 0:
             result = 'Standard'
         elif value == 1:
@@ -511,7 +499,7 @@ class Mythen:
         :return: Return the status of the Mythen: On, Running or Wait Trigger.
         """
         raw_value = self.command('-get status')
-        value = self._to_int(raw_value)[0]
+        value = to_int(raw_value)
         if value & self.MASK_RUNNING:
             state = 'RUNNING'
         else:
@@ -527,7 +515,7 @@ class Mythen:
         :return: Return the status of the Mythen: On, Running or Wait Trigger.
         """
         raw_value = self.command('-get status')
-        value = self._to_int(raw_value)[0]
+        value = to_int(raw_value)
         return bool(value & self.MASK_WAIT_TRIGGER)
 
     # ------------------------------------------------------------------
@@ -539,7 +527,7 @@ class Mythen:
         :return: Return the status of the Mythen: On, Running or Wait Trigger.
         """
         raw_value = self.command('-get status')
-        value = self._to_int(raw_value)[0]
+        value = to_int(raw_value)
         return bool(value & self.MASK_FIFO_EMPTY)
 
     # ------------------------------------------------------------------
@@ -551,7 +539,7 @@ class Mythen:
         :return: Return the status of the Mythen: On, Running or Wait Trigger.
         """
         raw_value = self.command('-get status')
-        value = self._to_int(raw_value)[0]
+        value = to_int(raw_value)
         return bool(value & self.MASK_RUNNING)
 
     # ------------------------------------------------------------------
@@ -563,7 +551,7 @@ class Mythen:
         :return: State of the rate correction.
         """
         raw_value = self.command('-get ratecorrection')
-        value = self._to_int(raw_value)[0]
+        value = to_int(raw_value)
         return bool(value)
 
     @rate.setter
@@ -585,7 +573,7 @@ class Mythen:
         :return: Numpy array with the count of each channels.
         """
         raw_value = self.command('-readout')
-        values = self._to_int_list(raw_value)
+        values = to_int_list(raw_value)
         if values[0] == -1:
             raise MythenError(ERR_MYTHEN_READOUT)
         if len(values) != self.nchannels:
@@ -601,7 +589,7 @@ class Mythen:
         :return: number of bits
         """
         raw_value = self.command('-get nbits')
-        value = self._to_int(raw_value)[0]
+        value = to_int(raw_value)
         return value
 
     @readoutbits.setter
@@ -623,7 +611,7 @@ class Mythen:
         :return: Value of the current Tau
         """
         raw_value = self.command('-get tau')
-        value = self._to_float(raw_value)[0]
+        value = to_float(raw_value)
         value *= 100e-9
         return value
 
@@ -648,7 +636,7 @@ class Mythen:
         :return: Threshold value in keV.
         """
         raw_value = self.command('-get kthresh')
-        value = self._to_float(raw_value)[0]
+        value = to_float(raw_value)
         return value
 
     @threshold.setter
