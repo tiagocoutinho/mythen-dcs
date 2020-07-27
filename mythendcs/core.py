@@ -1,5 +1,6 @@
 import socket
 import struct
+import functools
 import numpy as np
 
 COUNTER_BITS = [4, 8, 16, 24]
@@ -8,6 +9,9 @@ SETTINGS_MODES = ['StdCu', 'StdMo', 'HgCr', 'HgCu', 'FastCu', 'FastMo']
 
 TCP_PORT = 1031
 UDP_PORT = 1030
+
+TCP = socket.SOCK_STREAM
+UDP = socket.SOCK_DGRAM
 
 ERR_MYTHEN_COMM_LENGTH = -40
 ERR_MYTHEN_COMM_TIMEOUT = -41
@@ -88,6 +92,95 @@ TRIGGER_TYPES = ['INTERNAL', 'EXTERNAL_TRIGGER_MULTI',
                  'EXTERNAL_TRIGGER_START', ]
 
 
+def ensure_connection(f):
+
+    def reconnect(conn):
+        if conn.socket is None:
+            conn.connect()
+            return True
+        return False
+
+    @functools.wraps(f)
+    def wrapper(self, *args, **kwargs):
+        just_connected = reconnect(self)
+        if self.kind == UDP or just_connected:
+            return f(self, *args, **kwargs)
+        try:
+            result = f(self, *args, **kwargs)
+            if result is b'':
+                raise OSError('remote end disconnected')
+            return result
+        except OSError:
+            self.connect()
+            return f(self, *args, **kwargs)
+    return wrapper
+
+
+class Channel:
+    """
+    Communication channel
+    """
+
+    def __init__(self, host, port, timeout=None, kind=None):
+        self.host = host
+        self.port  = port
+        self.timeout = timeout
+        self._kind = kind
+        self.socket = None
+        self.fobj = None
+
+    def __del__(self):
+        self.disconnect()
+
+    def __repr__(self):
+        conn = "connected" if self.socket else "pending"
+        kind = 'UDP' if self.kind == UDP else 'TCP'
+        return "<{} {} {}>".format(kind, conn, (self.host, self.port))
+
+    @property
+    def kind(self):
+        if self._kind is None:
+            return (UDP if self.port == UDP_PORT else TCP)
+        return self._kind
+
+    def connect(self):
+        self.disconnect()
+        sock = socket.socket(socket.AF_INET, type=self.kind)
+        if self.timeout is not None:
+            sock.settimeout(self.timeout)
+        sock.connect((self.host, self.port))
+        self.fobj = sock.makefile("rwb", buffering=0)
+        self.socket = sock
+
+    def disconnect(self):
+        if self.socket is not None:
+            self.socket.close()
+            self.socket = None
+            self.fobj = None
+
+    @ensure_connection
+    def write(self, data):
+        self.fobj.write(data)
+
+    @ensure_connection
+    def read(self, size, timeout=None):
+        return self.fobj.read(size)
+
+    @ensure_connection
+    def write_read(self, data, size):
+        self.fobj.write(data)
+        return self.fobj.read(size)
+
+
+to_int = struct.Struct("<i").unpack
+to_long_long = struct.Struct("<q").unpack
+to_float = struct.Struct("<f").unpack
+
+def _to_int_list(self, raw_value):
+    fmt = "<%di" % (len(raw_value) // 4)
+    return np.array(struct.unpack(fmt, raw_value))
+
+
 class Mythen:
     """
     Class to control the Mythen. Exported API:
@@ -99,19 +192,17 @@ class Mythen:
     MASK_WAIT_TRIGGER = 1 << 3  # Bit 3
     MASK_FIFO_EMPTY = 1 << 16  # Bit 16
 
-    def __init__(self, ip, port, timeout=3, nmod=1):
+    def __init__(self, channel, nmod=1):
         """
-        :param ip: Mythen IP
+        :param channel
         :param port: UDP_PORT or TCP_PORT
         :param timeout:
         :param nmod: Number of modules
-        :return:
+        :return:          self.conn.write(cmd.encode() if isinstance(cmd, str) else cmd)
+      self.conn.write(cmd.encode() if isinstance(cmd, str) else cmd)
+
         """
-        self.ip = ip
-        self.port = port
-        self.socket_conf = (ip, port)
-        self.mythen_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.mythen_socket.settimeout(timeout)
+        self.channel = channel
         self.buff = nmod * self.MAX_BUFF_SIZE_MODULE
         self.nchannels = nmod * self.MAX_CHANNELS
         self.frames = 1
@@ -122,27 +213,16 @@ class Mythen:
         self.continuoustrigger = False
 
     def _send_msg(self, cmd):
-        """
-        :param cmd: Command
-        :return:
-        """
-        if isinstance(cmd, str):
-            cmd = cmd.encode()
         try:
-            self.mythen_socket.sendto(cmd, self.socket_conf)
+            self.channel.write(cmd.encode() if isinstance(cmd, str) else cmd)
         except socket.timeout:
             raise MythenError(ERR_MYTHEN_COMM_TIMEOUT)
 
     def _receive_msg(self):
-        """
-        :return: String with the answer.
-        """
         try:
-            result, socket_rsv = self.mythen_socket.recvfrom(self.buff)
+            return self.channel.read(self.buff)
         except socket.timeout:
             raise MythenError(ERR_MYTHEN_COMM_TIMEOUT)
-
-        return result
 
     def _to_int(self, raw_value):
         return struct.unpack('i', raw_value)
@@ -166,8 +246,12 @@ class Mythen:
         :param cmd: Command
         :return: Answer
         """
-        self._send_msg(cmd)
-        raw_value = self._receive_msg()
+        cmd = cmd.encode() if isinstance(cmd, str) else cmd
+        try:
+            raw_value = self.channel.write_read(cmd, self.buff)
+        except socket.timeout:
+            raise MythenError(ERR_MYTHEN_COMM_TIMEOUT)
+
         # sizeof(int)
         if len(raw_value) == 4:
             value = self._to_int(raw_value)[0]
@@ -626,5 +710,3 @@ class Mythen:
     def set_num_gates(self, gates):
         self.command('-gates %d' % gates)
 
-    def __del__(self):
-        self.mythen_socket.close()
