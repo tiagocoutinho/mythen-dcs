@@ -88,7 +88,7 @@ TRIGGER_TYPES = ['INTERNAL', 'EXTERNAL_TRIGGER_MULTI',
                  'EXTERNAL_TRIGGER_START', ]
 
 
-class Mythen(object):
+class Mythen:
     """
     Class to control the Mythen. Exported API:
 
@@ -126,6 +126,8 @@ class Mythen(object):
         :param cmd: Command
         :return:
         """
+        if isinstance(cmd, str):
+            cmd = cmd.encode()
         try:
             self.mythen_socket.sendto(cmd, self.socket_conf)
         except socket.timeout:
@@ -361,7 +363,7 @@ class Mythen(object):
         """
         :return: String with the current setting mode.
         """
-        raw = self.command('-get settingsmode')
+        raw = self.command('-get settingsmode').decode()
         value = raw
         if 'auto' not in raw:
             value = (raw.split()[1])

@@ -200,7 +200,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         # Initialize attributes
         self.frames_readies = 0
         self.live_mode = False
-        self.async = False
+        self.asynch = False
         self.raw_data = np.zeros(1280)
         self.image_data = np.zeros((1, 1280))
         self.stop_flag = False
@@ -299,7 +299,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
     # ------------------------------------------------------------------
     @ExceptionHandler
     def state_machine(self):
-        if self.async:
+        if self.asynch:
             return
         status = self.mythen.status
         if status in ['RUNNING', 'WAIT_TRIGGER']:
@@ -429,7 +429,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         if data[0] not in SETTINGS_MODES:
             raise ValueError('Invalid value. %s' % repr(SETTINGS_MODES))
 
-        self.async = True
+        self.asynch = True
         self.set_state(DEV_STATE_INIT)
         self.set_status('Configuring....')
         t = threading.Thread(target=self._setting_mode, args=[data[0]])
@@ -441,7 +441,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.push_change_event('Settings', settings)
         self.push_change_event('SettingsMode', value)
         self.set_state(DEV_STATE_ON)
-        self.async = False
+        self.asynch = False
 
     def is_SettingsMode_allowed(self, req_type):
         return self.get_state() in (DEV_STATE_ON,)
@@ -743,7 +743,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
     def Start(self):
         self.raw_data = None
         self.stop_flag = False
-        self.async = True
+        self.asynch = True
         if self.live_mode:
             self.mythen.frames = 1
             self.mythen.triggermode = False
@@ -807,7 +807,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.set_status('ON')
         self.push_change_event('State')
         self.push_change_event('Status')
-        self.async = False
+        self.asynch = False
 
     def _multiframes_acq(self):
         while True:
@@ -841,7 +841,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
 
     @ExceptionHandler
     def Reset(self):
-        self.async = True
+        self.asynch = True
         self.set_state(DEV_STATE_INIT)
         self.set_status('Resetting....')
         self.push_change_event('State')
@@ -866,7 +866,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.set_status('ON')
         self.push_change_event('State')
         self.push_change_event('Status')
-        self.async = False
+        self.asynch = False
 
     def is_Reset_allowed(self):
         return self.get_state() in (DEV_STATE_RUNNING, DEV_STATE_FAULT,
@@ -874,7 +874,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
 
     @ExceptionHandler
     def AutoSettings(self, value):
-        self.async = True
+        self.asynch = True
         self.set_state(DEV_STATE_INIT)
         self.set_status('Configuring....')
         t = threading.Thread(target=self._autosettings, args=[value])
@@ -887,7 +887,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
         self.push_change_event('Settings', settings)
         self.push_change_event('SettingsMode', settings_mode)
         self.set_state(DEV_STATE_ON)
-        self.async = False
+        self.asynch = False
 
     @ExceptionHandler
     def GetROIBuffer(self, value):

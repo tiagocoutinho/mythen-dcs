@@ -1,4 +1,4 @@
-from mythendcs import Mythen, UDP_PORT, TCP_PORT, MythenError, COUNTER_BITS
+from mythendcs.core import Mythen, UDP_PORT, TCP_PORT, MythenError, COUNTER_BITS
 from unittest import TestCase, TestSuite, TextTestRunner
 import random
 import time
