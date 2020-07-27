@@ -1,6 +1,7 @@
 import socket
 import struct
 import functools
+import contextlib
 import numpy as np
 
 COUNTER_BITS = [4, 8, 16, 24]
@@ -116,10 +117,22 @@ def ensure_connection(f):
     return wrapper
 
 
+@contextlib.contextmanager
+def guard_timeout(channel, timeout):
+    if timeout is None:
+        yield
+    else:
+        prev_timeout = channel.socket.gettimeout()
+        channel.socket.settimeout(timeout)
+        try:
+            yield
+        finally:
+            if channel.socket:
+                channel.socket.settimeout(prev_timeout)
+
+
 class Channel:
-    """
-    Communication channel
-    """
+    """Communication channel"""
 
     def __init__(self, host, port, timeout=None, kind=None):
         self.host = host
@@ -164,12 +177,14 @@ class Channel:
 
     @ensure_connection
     def read(self, size, timeout=None):
-        return self.fobj.read(size)
+        with guard_timeout(self, timeout):
+            return self.fobj.read(size)
 
     @ensure_connection
-    def write_read(self, data, size):
-        self.fobj.write(data)
-        return self.fobj.read(size)
+    def write_read(self, data, size, timeout=None):
+        with guard_timeout(self, timeout):
+            self.fobj.write(data)
+            return self.fobj.read(size)
 
 
 to_int = struct.Struct("<i").unpack
@@ -240,7 +255,7 @@ class Mythen:
     # ------------------------------------------------------------------
     #   Commands
     # ------------------------------------------------------------------
-    def command(self, cmd):
+    def command(self, cmd, timeout=None):
         """
         Method to send command to Mythen. It verifies if there are errors.
         :param cmd: Command
@@ -248,7 +263,7 @@ class Mythen:
         """
         cmd = cmd.encode() if isinstance(cmd, str) else cmd
         try:
-            raw_value = self.channel.write_read(cmd, self.buff)
+            raw_value = self.channel.write_read(cmd, self.buff, timeout=timeout)
         except socket.timeout:
             raise MythenError(ERR_MYTHEN_COMM_TIMEOUT)
 
@@ -275,7 +290,8 @@ class Mythen:
         """
         :return: None
         """
-        self.command('-reset')
+        # takes 2s + 0.5s per module: make sure the timeout is setup properly
+        self.command('-reset', timeout=5)
         self._frames = 1
 
     def autosettings(self, value):
