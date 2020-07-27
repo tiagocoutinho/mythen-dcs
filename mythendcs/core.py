@@ -119,7 +119,7 @@ def ensure_connection(f):
 
 @contextlib.contextmanager
 def guard_timeout(channel, timeout):
-    if timeout is None:
+    if timeout == -1:
         yield
     else:
         prev_timeout = channel.socket.gettimeout()
@@ -159,8 +159,7 @@ class Channel:
     def connect(self):
         self.disconnect()
         sock = socket.socket(socket.AF_INET, type=self.kind)
-        if self.timeout is not None:
-            sock.settimeout(self.timeout)
+        sock.settimeout(self.timeout)
         sock.connect((self.host, self.port))
         self.fobj = sock.makefile("rwb", buffering=0)
         self.socket = sock
@@ -171,21 +170,42 @@ class Channel:
             self.socket = None
             self.fobj = None
 
+    def _read_exactly_into(self, buff):
+            try:
+                size = buff.nbytes
+            except AttributeError:
+                size = len(buff)
+            offset = 0
+            while offset < size:
+                print(offset, size)
+                offset += self.socket.recv_into(buff[offset:])
+            return buff
+
     @ensure_connection
     def write(self, data):
         self.fobj.write(data)
 
     @ensure_connection
-    def read(self, size, timeout=None):
+    def read(self, size, timeout=-1):
         with guard_timeout(self, timeout):
             return self.fobj.read(size)
 
     @ensure_connection
-    def write_read(self, data, size, timeout=None):
+    def read_exactly_into(self, buff, timeout=-1):
+        with guard_timeout(self, timeout):
+            return self._read_exactly_into(buff)
+
+    @ensure_connection
+    def write_read(self, data, size, timeout=-1):
         with guard_timeout(self, timeout):
             self.fobj.write(data)
             return self.fobj.read(size)
 
+    @ensure_connection
+    def write_read_exactly_into(self, data, buff, timeout=-1):
+        with guard_timeout(self, timeout):
+            self.fobj.write(data)
+            self._read_exactly_into(buff)
 
 to_int = struct.Struct("<i").unpack
 to_long_long = struct.Struct("<q").unpack
