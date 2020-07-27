@@ -580,6 +580,30 @@ class Mythen:
             raise MythenError(ERR_MYTHEN_COMM_LENGTH)
         return values
 
+    def ireadout(self, n=None, buff=None):
+        # TODO: assert mythen version >= 4 (-readout 'n' only appears in v4)
+        # TODO: should calculate nb channels based on nb active modules
+        frame_channels = self.nchannels
+        frame_bytes = frame_channels * 4
+        if buff is None:
+            if n is None:
+                n = 1
+            buff = np.empty((n, frame_channels), '<i4')
+        else:
+            buff_nb_frames = buff.nbytes // frame_bytes
+            if n is None:
+                n = buff_nb_frames
+            else:
+                assert n == buff_nb_frames
+        flat = buff[:]
+        flat.shape = flat.size
+        self.channel.write('-readout {}'.format(n).encode())
+        for i in range(n):
+            offset = i*frame_channels
+            view = flat[offset:offset + frame_channels]
+            self.channel.read_exactly_into(view)
+            yield i, view, buff
+
     # ------------------------------------------------------------------
     #   Readout Bits
     # ------------------------------------------------------------------
