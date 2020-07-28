@@ -177,7 +177,6 @@ class Channel:
                 size = len(buff)
             offset = 0
             while offset < size:
-                print(offset, size)
                 offset += self.socket.recv_into(buff[offset:])
             return buff
 
@@ -579,6 +578,9 @@ class Mythen:
         if len(values) != self.nchannels:
             raise MythenError(ERR_MYTHEN_COMM_LENGTH)
         return values
+
+    def readout_into(self, buff):
+        return self.channel.write_read_exactly_into(b'-readout', buff)
 
     def ireadout(self, n=None, buff=None):
         # TODO: assert mythen version >= 4 (-readout 'n' only appears in v4)
