@@ -684,7 +684,7 @@ class Mythen:
         value = self.command('-get version')
         if len(value) != 7:
             raise MythenError(ERR_MYTHEN_COMM_LENGTH)
-        return value
+        return value[:-1].decode()
 
     # ------------------------------------------------------------------
     #   Triggers
