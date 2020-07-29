@@ -1,4 +1,6 @@
 """
+Configure a mythen detector in a YAML file:
+
 .. code-block:: yaml
 
     devices:
@@ -10,6 +12,10 @@
       - type: tcp
         url: :1031
 
+And start the simulator with::
+
+    $ sinstruments-server -c mythen.yml
+
 A simple *nc* client can be used to connect to the instrument (`-I 1` disables
 the input buffer since the protocol replies are a binary without terminator)::
 
@@ -17,8 +23,8 @@ the input buffer since the protocol replies are a binary without terminator)::
     -get version
 
 
-External signal to trigger/gate mode can be simulated by configuring
-an TCP socket:
+External signal to trigger/gate mode can be simulated by configuring a TCP
+socket:
 
 .. code-block:: yaml
 
@@ -35,11 +41,11 @@ an TCP socket:
 The external signal socket listens for "trigger\n", "low\n" and "high\n"
 messages.
 
-Example on how to acquire 10 frames with 0.1s exposure time with trigger start::
+Example on how to acquire 10 frames with 1.1s exposure time with trigger start::
 
     $ nc 0 1031
     -frames 10
-    -time 0.1
+    -time 11000000
     -trigen 1
     -start
 
