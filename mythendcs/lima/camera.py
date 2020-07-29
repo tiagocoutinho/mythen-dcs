@@ -10,7 +10,7 @@ from Lima.Core import (
     Timestamp, AcqReady, AcqRunning, CtControl, CtSaving,
     IntTrig, ExtTrigSingle, ExtTrigMult, ExtGate)
 
-from ..core import Mythen, Channel, TCP_PORT
+from ..core import Mythen, Connection, TCP_PORT
 
 
 Status = HwInterface.StatusType
@@ -202,7 +202,7 @@ class Interface(HwInterface):
 
 
 def get_ctrl(host, port=TCP_PORT, timeout=None):
-    channel = Channel(host, port, timeout=timeout)
+    channel = Connection(host, port, timeout=timeout)
     detector = Mythen(channel)
     interface = Interface(detector)
     ctrl = CtControl(interface)

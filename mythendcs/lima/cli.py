@@ -11,7 +11,7 @@ from limatb.info import info_list
 from limatb.network import get_subnet_addresses, get_host_by_addr
 
 from .camera import Interface
-from ..core import TCP, UDP, TCP_PORT, UDP_PORT, Mythen, Channel
+from ..core import TCP, UDP, TCP_PORT, UDP_PORT, Mythen, Connection
 
 
 @camera(name="mythendcs")
@@ -28,7 +28,7 @@ def mythendcs(ctx, url):
     if port is None:
         port = UDP_PORT if scheme == "udp" else TCP_PORT
     kind = UDP if scheme == "udp" else TCP
-    channel = Channel(url.hostname, port, kind=kind)
+    channel = Connection(url.hostname, port, kind=kind)
     camera = Mythen(channel)
     interface = Interface(camera)
     interface.camera = camera

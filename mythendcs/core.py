@@ -120,20 +120,20 @@ def ensure_connection(f):
 
 
 @contextlib.contextmanager
-def guard_timeout(channel, timeout):
+def guard_timeout(connection, timeout):
     if timeout == -1:
         yield
     else:
-        prev_timeout = channel.socket.gettimeout()
-        channel.socket.settimeout(timeout)
+        prev_timeout = connection.socket.gettimeout()
+        connection.socket.settimeout(timeout)
         try:
             yield
         finally:
-            if channel.socket:
-                channel.socket.settimeout(prev_timeout)
+            if connection.socket:
+                connection.socket.settimeout(prev_timeout)
 
 
-class Channel:
+class Connection:
     """Communication channel"""
 
     def __init__(self, host, port, timeout=None, kind=None):
@@ -240,12 +240,12 @@ class Mythen:
     MASK_WAIT_TRIGGER = 1 << 3  # Bit 3
     MASK_FIFO_EMPTY = 1 << 16  # Bit 16
 
-    def __init__(self, channel, nmod=1):
+    def __init__(self, connection, nmod=1):
         """
-        :param channel
+        :param connection
         :param nmod: Number of modules
         """
-        self.channel = channel
+        self.connection = connection
         self.buff = nmod * self.MAX_BUFF_SIZE_MODULE
         self.nchannels = nmod * self.MAX_CHANNELS
         self.frames = 1
@@ -257,13 +257,13 @@ class Mythen:
 
     def _send_msg(self, cmd):
         try:
-            self.channel.write(cmd.encode() if isinstance(cmd, str) else cmd)
+            self.connection.write(cmd.encode() if isinstance(cmd, str) else cmd)
         except socket.timeout:
             raise MythenError(ERR_MYTHEN_COMM_TIMEOUT)
 
     def _receive_msg(self):
         try:
-            return self.channel.read(self.buff)
+            return self.connection.read(self.buff)
         except socket.timeout:
             raise MythenError(ERR_MYTHEN_COMM_TIMEOUT)
 
@@ -278,7 +278,7 @@ class Mythen:
         """
         cmd = cmd.encode() if isinstance(cmd, str) else cmd
         try:
-            raw_value = self.channel.write_read(cmd, self.buff, timeout=timeout)
+            raw_value = self.connection.write_read(cmd, self.buff, timeout=timeout)
         except socket.timeout:
             raise MythenError(ERR_MYTHEN_COMM_TIMEOUT)
 
@@ -587,7 +587,7 @@ class Mythen:
         return values
 
     def readout_into(self, buff):
-        return self.channel.write_read_exactly_into(b'-readout', buff)
+        return self.connection.write_read_exactly_into(b'-readout', buff)
 
     def ireadout(self, n=None, buff=None):
         # TODO: assert mythen version >= 4 (-readout 'n' only appears in v4)
@@ -606,11 +606,11 @@ class Mythen:
                 assert n == buff_nb_frames
         flat = buff[:]
         flat.shape = flat.size
-        self.channel.write('-readout {}'.format(n).encode())
+        self.connection.write('-readout {}'.format(n).encode())
         for i in range(n):
             offset = i*frame_channels
             view = flat[offset:offset + frame_channels]
-            self.channel.read_exactly_into(view)
+            self.connection.read_exactly_into(view)
             yield i, view, buff
 
     # ------------------------------------------------------------------
