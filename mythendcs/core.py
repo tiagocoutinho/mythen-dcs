@@ -22,6 +22,50 @@ ERR_MYTHEN_READOUT = -42
 ERR_MYTHEN_SETTINGS = -43
 ERR_MYTHEN_BAD_PARAMETER = -44
 
+ERRORS = {
+    -1: 'Unknown command',
+    -2: 'Invalid argument',
+    -3: 'Unknown settings',
+    -4: 'Out of memory',
+    -5: 'Module calibration files not found',
+    -6: 'Readout failed',
+    -7: 'Acquisition not finished',
+    -8: 'Failure while reading temperature and humidity sensor',
+    -9: 'Invalid license key',
+    -10: 'Flat field not found',
+    -11: 'Bad channel file not found',
+    -12: 'Energy calibration not found',
+    -13: 'Noise file not found',
+    -14: 'Trim bit file not found',
+    -15: 'Invalid format of the flat field file',
+    -16: 'Invalid format of the bad channel file',
+    -17: 'Invalid format of the energy calibration file',
+    -18: 'Invalid format of the noise file',
+    -19: 'Invalid format of the trim bit file',
+    -20: 'Version file not found',
+    -21: 'Invalid format of the version file',
+    -22: 'Gain calibration file not found',
+    -23: 'Invalid format of the gain calibration file',
+    -24: 'Dead time file not found',
+    -25: 'Invalid format of the dead time file',
+    -26: 'High voltage file not found',
+    -27: 'Invalid format of high voltage file',
+    -28: 'Energy threshold relation file not found',
+    -29: 'Invalid format of the energy threshold relation file',
+    -30: 'Could not create log file',
+    -31: 'Could not close log file',
+    -32: 'Could not read log file',
+    -50: 'No modules connected',
+    -51: 'Error during module communication',
+    -52: 'DCS initialization failed',
+    -53: 'Could not store customer flat-field',
+    ERR_MYTHEN_COMM_LENGTH: 'Error with the communication, the response size is greater than the default.',
+    ERR_MYTHEN_COMM_TIMEOUT:'Error timed out, the device did not respond.',
+    ERR_MYTHEN_READOUT: 'Error with the readout command.',
+    ERR_MYTHEN_SETTINGS: 'Return and unknown settings code ({0}).',
+    ERR_MYTHEN_BAD_PARAMETER: 'Bad parameter.'
+}
+
 
 class MythenError(Exception):
     def __init__(self, value, *args):
@@ -29,100 +73,16 @@ class MythenError(Exception):
         self.args = args
 
     def __str__(self):
-        return self._get_error_msg(self.errcode)
+        return "Error {}: {}".format(self.errcode, self._get_error_msg())
 
-    def _get_error_msg(self, value):
-        if value == -1:
-            msg = 'Error %d: Unknown command' % value
-        elif value == -2:
-            msg = 'Error %d: Invalid argument' % value
-        elif value == -3:
-            msg = 'Error %d: Unknown settings' % value
-        elif value == -4:
-            msg = 'Error %d: Out of memory' % value
-        elif value == -5:
-            msg = 'Error %d: Module calibration files not found' % value
-        elif value == -6:
-            msg = 'Error %d: Readout failed' % value
-        elif value == -7:
-            msg = 'Error %d: Acquisition not finished' % value
-        elif value == -8:
-            msg = 'Error %d: Failure while reading temperature and humidity sensor' % value
-        elif value == -9:
-            msg = 'Error %d: Invalid license key' % value
-        elif value == -10:
-            msg = 'Error %d: Flat field not found' % value
-        elif value == -11:
-            msg = 'Error %d: Bad channel file not found' % value
-        elif value == -12:
-            msg = 'Error %d: Energy calibration not found' % value
-        elif value == -13:
-            msg = 'Error %d: Noise file not found' % value
-        elif value == -14:
-            msg = 'Error %d: Trim bit file not found' % value
-        elif value == -15:
-            msg = 'Error %d: Invalid format of the flat field file' % value
-        elif value == -16:
-            msg = 'Error %d: Invalid format of the bad channel file' % value
-        elif value == -17:
-            msg = ('Error %d: Invalid format of the energy calibration file'
-                   % value)
-        elif value == -18:
-            msg = 'Error %d: Invalid format of the noise file' % value
-        elif value == -19:
-            msg = 'Error %d: Invalid format of the trim bit file' % value
-        elif value == -20:
-            msg = 'Error %d: Version file not found' % value
-        elif value == -21:
-            msg = 'Error %d: Invalid format of the version file' % value
-        elif value == -22:
-            msg = 'Error %d: Gain calibration file not found' % value
-        elif value == -23:
-            msg = 'Error %d: Invalid format of the gain calibration file' % value
-        elif value == -24:
-            msg = 'Error %d: Dead time file not found' % value
-        elif value == -25:
-            msg = 'Error %d: Invalid format of the dead time file' % value
-        elif value == -26:
-            msg = 'Error %d: High voltage file not found' % value
-        elif value == -27:
-            msg = 'Error %d: Invalid format of high voltage file' % value
-        elif value == -28:
-            msg = 'Error %d: Energy threshold relation file not found' % value
-        elif value == -29:
-            msg = 'Error %d: Invalid format of the energy threshold relation file' % value
-        elif value == -30:
-            msg = 'Error %d: Could not create log file' % value
-        elif value == -31:
-            msg = 'Error %d: Could not close log file' % value
-        elif value == -32:
-            msg = 'Error %d: Could not read log file' % value
-        elif value == -50:
-            msg = 'Error %d: No modules connected' % value
-        elif value == -51:
-            msg = 'Error %d: Error during module communication' % value
-        elif value == -52:
-            msg = 'Error %d: DCS initialization failed' % value
-        elif value == -53:
-            msg = 'Error %d: Could not store customer flat-field' % value
-        elif value == ERR_MYTHEN_COMM_LENGTH:
-            msg = ('Error %d: Error with the communication, the response size '
-                   'is greater than the default.' % value)
-        elif value == ERR_MYTHEN_COMM_TIMEOUT:
-            msg = ('Error %d: Error timed out, the device did not respond. '
-                   % value)
-        elif value == ERR_MYTHEN_READOUT:
-            msg = ('Error %d: Error with the readout command. '
-                   % value)
-        elif value == ERR_MYTHEN_SETTINGS:
-            msg = ('Error %d: Return and unknown settings code (%d).'
-                   % (value, self.args[0]))
-        elif value == ERR_MYTHEN_BAD_PARAMETER:
-            msg = 'Error %d: Bad parameter.' % value
-        else:
-            msg = 'Unknown error code (%d)' % value
+    def _get_error_msg(self):
+        msg = ERRORS.get(self.errcode, "Unknown error code")
+        return msg.format(*self.args)
 
-        return msg
+    def __repr__(self):
+        return '{}({}, {!r})'.format(
+            type(self).__name__, self.errcode, self._get_error_msg()
+        )
 
 
 TRIGGER_TYPES = ['INTERNAL', 'EXTERNAL_TRIGGER_MULTI',
