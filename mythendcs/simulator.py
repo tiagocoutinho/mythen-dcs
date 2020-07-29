@@ -224,13 +224,21 @@ class BaseAcquisition:
     def run(self):
         self.finished = False
         try:
-            for i, data in enumerate(self.steps()):
-                self.buffer.put(data)
+            for frame_nb, frame in enumerate(self.steps()):
+                self.buffer.put(frame)
+        except gevent.GreenletExit:
+            if frame_nb < (self.nb_frames - 1):
+                frame = self.create_frame(frame_nb+1)
+                self.buffer.put(frame)
+            self.buffer.put(None)
         finally:
             self.finished = True
 
     def steps(self):
         raise NotImplementedError
+
+    def create_frame(self, frame_nb):
+        return self.nb_channels * frame_nb.to_bytes(4, 'little', signed=True)
 
     def expose(self):
         self.exposing = True
@@ -238,15 +246,17 @@ class BaseAcquisition:
         self.exposing = False
 
     def acquire(self, frame_nb):
-        self._log.debug("start acquiring frame #%d/%d...", frame_nb, self.nb_frames)
+        self._log.debug("start acquiring frame #%d/%d...",
+                        frame_nb + 1, self.nb_frames)
         if self.delay_before > 0:
             gevent.sleep(self.delay_before)
         self.expose()
         if self.delay_after > 0:
             gevent.sleep(self.delay_after)
-        data = self.nb_channels * struct.pack("<i", frame_nb)
-        self._log.debug("finished acquiring frame #%d/%d...", frame_nb, self.nb_frames)
-        return data
+        frame = self.create_frame(frame_nb)
+        self._log.debug("finished acquiring frame #%d/%d...",
+                        frame_nb + 1, self.nb_frames)
+        return frame
 
 
 class InternalTriggerAcquisition(BaseAcquisition):
@@ -394,7 +404,10 @@ class Mythen2(BaseDevice):
         elif cmd == "readout":
             nb_frames = int(data[0]) if data else 1
             for _ in range(nb_frames):
-                yield self.acq.buffer.get()
+                frame = self.acq.buffer.get()
+                if frame is None:
+                    break
+                yield frame
         else:
             assert len(data) == 1
             self[cmd] = data[0]
