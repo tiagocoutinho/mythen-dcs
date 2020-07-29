@@ -1,7 +1,9 @@
 import socket
 import struct
 import functools
+import threading
 import contextlib
+
 import numpy as np
 
 COUNTER_BITS = [4, 8, 16, 24]
@@ -141,6 +143,7 @@ class Channel:
         self._kind = kind
         self.socket = None
         self.fobj = None
+        self.lock = threading.Lock()
 
     def __del__(self):
         self.disconnect()
@@ -171,14 +174,14 @@ class Channel:
             self.fobj = None
 
     def _read_exactly_into(self, buff):
-            try:
-                size = buff.nbytes
-            except AttributeError:
-                size = len(buff)
-            offset = 0
-            while offset < size:
-                offset += self.socket.recv_into(buff[offset:])
-            return buff
+        try:
+            size = buff.nbytes
+        except AttributeError:
+            size = len(buff)
+        offset = 0
+        while offset < size:
+            offset += self.socket.recv_into(buff[offset:])
+        return buff
 
     @ensure_connection
     def write(self, data):
@@ -187,24 +190,28 @@ class Channel:
     @ensure_connection
     def read(self, size, timeout=-1):
         with guard_timeout(self, timeout):
-            return self.fobj.read(size)
+            with self.lock:
+                return self.fobj.read(size)
 
     @ensure_connection
     def read_exactly_into(self, buff, timeout=-1):
         with guard_timeout(self, timeout):
-            return self._read_exactly_into(buff)
+            with self.lock:
+                return self._read_exactly_into(buff)
 
     @ensure_connection
     def write_read(self, data, size, timeout=-1):
         with guard_timeout(self, timeout):
             self.fobj.write(data)
-            return self.fobj.read(size)
+            with self.lock:
+                return self.fobj.read(size)
 
     @ensure_connection
     def write_read_exactly_into(self, data, buff, timeout=-1):
         with guard_timeout(self, timeout):
             self.fobj.write(data)
-            self._read_exactly_into(buff)
+            with self.lock:
+                self._read_exactly_into(buff)
 
 
 def to_int(d):
