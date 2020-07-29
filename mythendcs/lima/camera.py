@@ -116,6 +116,52 @@ class DetInfo(HwDetInfoCtrlObj):
         pass
 
 
+class Acquisition:
+
+    def __init__(self, detector, buffer_manager, nb_frames, frame_dim):
+        self.detector = detector
+        self.buffer_manager = buffer_manager
+        self.nb_frames = nb_frames
+        self.frame_dim = frame_dim
+        self.nb_acquired_frames = 0
+        self.status = Status.Ready
+        self.frame_infos = [HwFrameInfoType() for i in range(nb_frames)]
+        self.stopped = False
+        self.acq_thread = threading.Thread(target=self.acquire)
+
+    def start(self):
+        self.acq_thread.start()
+
+    def stop(self):
+        self.detector.stop()
+        self.stopped = True
+        self.acq_thread.join()
+
+    def acquire(self):
+        detector, buff_mgr = self.detector, self.buffer_manager
+        frame_infos = self.frame_infos
+        frame_size = self.frame_dim.getMemSize()
+        start_time = time.time()
+        detector.start()
+        self.status = Status.Exposure
+        buff_mgr.setStartTimestamp(Timestamp(start_time))
+        for frame_nb in range(self.nb_frames):
+            if self.stopped:
+                break
+            self.status = Status.Readout
+            buff = buff_mgr.getFrameBufferPtr(frame_nb)
+            # don't know why the sip.voidptr has no size
+            buff.setsize(frame_size)
+            data = numpy.frombuffer(buff, dtype='<i4')
+            detector.readout_into(data)
+            frame_info = frame_infos[frame_nb]
+            frame_info.acq_frame_nb = frame_nb
+            buff_mgr.newFrameReady(frame_info)
+            self.nb_acquired_frames += 1
+            self.status = Status.Exposure
+        self.status = Status.Ready
+
+
 class Interface(HwInterface):
 
     def __init__(self, detector):
@@ -125,10 +171,7 @@ class Interface(HwInterface):
         self.sync = Sync(detector)
         self.buff = SoftBufferCtrlObj()
         self.caps = list(map(HwCap, (self.det_info, self.sync, self.buff)))
-        self._status = Status.Ready
-        self._nb_acquired_frames = 0
-        self._acq_thread = None
-        self._acq = None
+        self.acq = None
 
     def getCapList(self):
         return self.caps
@@ -139,57 +182,23 @@ class Interface(HwInterface):
     def prepareAcq(self):
         nb_frames = self.sync.getNbHwFrames()
         frame_dim = self.buff.getFrameDim()
-        frame_infos = [HwFrameInfoType() for i in range(nb_frames)]
-        self._nb_acquired_frames = 0
-        self._acq_thread = threading.Thread(
-            target=self._acquire, args=(frame_dim, frame_infos))
+        buffer_manager = self.buff.getBuffer()
+        self.acq = Acquisition(self.detector, buffer_manager, nb_frames, frame_dim)
 
     def startAcq(self):
-        self._acq_thread.start()
+        self.acq.start()
 
     def stopAcq(self):
-        self.detector.stop()
-        if self._acq_thread:
-            self._acq_thread.join()
+        if self.acq:
+            self.acq.stop()
 
     def getStatus(self):
         s = Status()
-        s.set(self._status)
+        s.set(self.acq.status if self.acq else Status.Ready)
         return s
 
     def getNbHwAcquiredFrames(self):
-        return self._nb_acquired_frames
-
-    def _acquire(self, frame_dim, frame_infos):
-        try:
-            self._acquisition_loop(frame_dim, frame_infos)
-        except BaseException as err:
-            print('Error occurred: {!r}'.format(err))
-            import traceback
-            traceback.print_exc()
-
-    def _acquisition_loop(self, frame_dim, frame_infos):
-        frame_size = frame_dim.getMemSize()
-        buffer_mgr = self.buff.getBuffer()
-        nb_frames = len(frame_infos)
-        start_time = time.time()
-        detector = self.detector
-        buffer_mgr.setStartTimestamp(Timestamp(start_time))
-        detector.start()
-        self._status = Status.Exposure
-        for frame_nb in range(nb_frames):
-            self._status = Status.Readout
-            buff = buffer_mgr.getFrameBufferPtr(frame_nb)
-            # don't know why the sip.voidptr has no size
-            buff.setsize(frame_size)
-            data = numpy.frombuffer(buff, dtype='<i4')
-            detector.readout_into(data)
-            frame_info = frame_infos[frame_nb]
-            frame_info.acq_frame_nb = frame_nb
-            buffer_mgr.newFrameReady(frame_info)
-            self._nb_acquired_frames += 1
-            self._status = Status.Exposure
-        self._status = Status.Ready
+        return self.acq.nb_acquired_frames if self.acq else 0
 
 
 def get_ctrl(host, port=TCP_PORT, timeout=None):
