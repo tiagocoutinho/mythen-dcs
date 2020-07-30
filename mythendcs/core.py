@@ -134,7 +134,7 @@ class Connection:
         self.host = host
         self.port  = port
         self.timeout = timeout
-        self._kind = kind
+        self.kind = (UDP if port == UDP_PORT else TCP) if kind is None else kind
         self.socket = None
         self.fobj = None
         self.lock = threading.Lock()
@@ -146,12 +146,6 @@ class Connection:
         conn = "connected" if self.socket else "pending"
         kind = 'UDP' if self.kind == UDP else 'TCP'
         return "<{} {} {}>".format(kind, conn, (self.host, self.port))
-
-    @property
-    def kind(self):
-        if self._kind is None:
-            return (UDP if self.port == UDP_PORT else TCP)
-        return self._kind
 
     def connect(self):
         self.disconnect()
