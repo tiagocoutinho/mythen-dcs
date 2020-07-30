@@ -244,18 +244,6 @@ class Mythen:
         self.outputhigh = True
         self.continuoustrigger = False
 
-    def _send_msg(self, cmd):
-        try:
-            self.connection.write(cmd.encode() if isinstance(cmd, str) else cmd)
-        except socket.timeout:
-            raise MythenError(ERR_MYTHEN_COMM_TIMEOUT)
-
-    def _receive_msg(self):
-        try:
-            return self.connection.read(self.buff)
-        except socket.timeout:
-            raise MythenError(ERR_MYTHEN_COMM_TIMEOUT)
-
     # ------------------------------------------------------------------
     #   Commands
     # ------------------------------------------------------------------
