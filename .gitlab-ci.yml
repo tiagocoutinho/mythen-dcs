@@ -1,0 +1,39 @@
+image: "python:3.5-slim-stretch"
+
+before_script:
+
+stages:
+  - build
+  - test
+  - deploy
+
+build:
+  stage: build
+  script:
+    - python setup.py build sdist
+
+tests:
+  stage: test
+  before_script:
+    - apt-get update -q && apt-get install -y -q python3-gevent python3-numpy python3-pytest python3-tango
+    - pip install pytest-cov "sinstruments>=1"
+    - pip install . .[all]
+  script:
+    - pytest
+  artifacts:
+    paths:
+      - .coverage.*
+    expire_in: 30 minutes
+
+pages:
+  stage: deploy
+  dependencies:
+    - tests
+  script:
+    - mv htmlcov public/coverage
+  artifacts:
+    paths:
+      - public
+  only:
+    - master
+    - py3
