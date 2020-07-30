@@ -174,6 +174,7 @@ TYPES = (
     Int("ratecorrection", 0),
     Int("flatfieldcorrection", 0),
     Int("badchannelinterpolation", 0),
+    IntArrayNChan("flatfield", 4 * 1280 * [0]),
     Int("inpol", 0),  # 0 - rising edge, 1 - falling edge (removed in v4.0)
     Int("outpol", 0),  # 0 - rising edge, 1 - falling edge (removed in v4.0)
     IntArrayNMod(
@@ -229,6 +230,7 @@ class BaseAcquisition:
 
     def run(self):
         self.finished = False
+        frame_nb = -1
         try:
             for frame_nb, frame in enumerate(self.steps()):
                 self.buffer.put(frame)
