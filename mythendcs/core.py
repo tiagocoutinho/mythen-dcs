@@ -340,11 +340,8 @@ class Mythen:
         """
         :return: Numpy array with the flat field value per each channels.
         """
-        raw_value = self.command('-get flatfield')
-        values = to_int_list(raw_value)
-        if len(values) != self.nchannels:
-            raise MythenError(ERR_MYTHEN_COMM_LENGTH)
-        return values
+        values = np.empty(self.nchannels, dtype='<i4')
+        return self.connection.write_read_exactly_into(b'-get flatfield', values)
 
     # ------------------------------------------------------------------
     #   Flat Field Correction
