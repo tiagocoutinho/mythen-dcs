@@ -99,7 +99,11 @@ def ensure_connection(f):
                 self.connect()
                 just_connected =True
             if self.kind == UDP or just_connected:
-                return f(self, *args, **kwargs)
+                try:
+                    return f(self, *args, **kwargs)
+                except (socket.timeout, OSError):
+                    self.disconnect()
+                    raise
             try:
                 result = f(self, *args, **kwargs)
                 if result is b'':
