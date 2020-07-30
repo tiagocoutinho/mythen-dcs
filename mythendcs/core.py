@@ -93,23 +93,24 @@ def ensure_connection(f):
 
     @functools.wraps(f)
     def wrapper(self, *args, **kwargs):
-        just_connected = False
-        if self.socket is None:
-            self.connect()
-            just_connected =True
-        if self.kind == UDP or just_connected:
-            return f(self, *args, **kwargs)
-        try:
-            result = f(self, *args, **kwargs)
-            if result is b'':
-                raise ConnectionError('remote end disconnected')
-            return result
-        except socket.timeout:
-            self.disconnect()
-            raise
-        except OSError:
-            self.connect()
-            return f(self, *args, **kwargs)
+        with self.lock:
+            just_connected = False
+            if self.socket is None:
+                self.connect()
+                just_connected =True
+            if self.kind == UDP or just_connected:
+                return f(self, *args, **kwargs)
+            try:
+                result = f(self, *args, **kwargs)
+                if result is b'':
+                    raise ConnectionError('remote end disconnected')
+                return result
+            except socket.timeout:
+                self.disconnect()
+                raise
+            except OSError:
+                self.connect()
+                return f(self, *args, **kwargs)
     return wrapper
 
 
@@ -178,28 +179,24 @@ class Connection:
     @ensure_connection
     def read(self, size, timeout=-1):
         with guard_timeout(self, timeout):
-            with self.lock:
-                return self.fobj.read(size)
+            return self.fobj.read(size)
 
     @ensure_connection
     def read_exactly_into(self, buff, timeout=-1):
         with guard_timeout(self, timeout):
-            with self.lock:
-                return self._read_exactly_into(buff)
+            return self._read_exactly_into(buff)
 
     @ensure_connection
     def write_read(self, data, size, timeout=-1):
         with guard_timeout(self, timeout):
             self.fobj.write(data)
-            with self.lock:
-                return self.fobj.read(size)
+            return self.fobj.read(size)
 
     @ensure_connection
     def write_read_exactly_into(self, data, buff, timeout=-1):
         with guard_timeout(self, timeout):
             self.fobj.write(data)
-            with self.lock:
-                self._read_exactly_into(buff)
+            return self._read_exactly_into(buff)
 
 
 def to_int(d):
