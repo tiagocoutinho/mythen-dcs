@@ -12,9 +12,9 @@ SETTINGS_MODES = ['StdCu', 'StdMo', 'HgCr', 'HgCu', 'FastCu', 'FastMo']
 
 TCP_PORT = 1031
 UDP_PORT = 1030
-
 TCP = socket.SOCK_STREAM
 UDP = socket.SOCK_DGRAM
+DEFAULT_TIMEOUT = object()
 
 ERR_MYTHEN_COMM_LENGTH = -40
 ERR_MYTHEN_COMM_TIMEOUT = -41
@@ -116,7 +116,7 @@ def ensure_connection(f):
 
 @contextlib.contextmanager
 def guard_timeout(connection, timeout):
-    if timeout == -1:
+    if timeout is DEFAULT_TIMEOUT:
         yield
     else:
         prev_timeout = connection.socket.gettimeout()
@@ -177,23 +177,23 @@ class Connection:
         self.fobj.write(data)
 
     @ensure_connection
-    def read(self, size, timeout=-1):
+    def read(self, size, timeout=DEFAULT_TIMEOUT):
         with guard_timeout(self, timeout):
             return self.fobj.read(size)
 
     @ensure_connection
-    def read_exactly_into(self, buff, timeout=-1):
+    def read_exactly_into(self, buff, timeout=DEFAULT_TIMEOUT):
         with guard_timeout(self, timeout):
             return self._read_exactly_into(buff)
 
     @ensure_connection
-    def write_read(self, data, size, timeout=-1):
+    def write_read(self, data, size, timeout=DEFAULT_TIMEOUT):
         with guard_timeout(self, timeout):
             self.fobj.write(data)
             return self.fobj.read(size)
 
     @ensure_connection
-    def write_read_exactly_into(self, data, buff, timeout=-1):
+    def write_read_exactly_into(self, data, buff, timeout=DEFAULT_TIMEOUT):
         with guard_timeout(self, timeout):
             self.fobj.write(data)
             return self._read_exactly_into(buff)
