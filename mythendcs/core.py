@@ -166,9 +166,9 @@ class Connection:
             size = buff.nbytes
         except AttributeError:
             size = len(buff)
-        offset = 0
+        offset, view = 0, memoryview(buff)
         while offset < size:
-            offset += self.socket.recv_into(buff[offset:])
+            offset += self.socket.recv_into(view[offset:])
         return buff
 
     @ensure_connection
