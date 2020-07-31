@@ -135,7 +135,7 @@ def guard_timeout(connection, timeout):
 class Connection:
     """Communication channel"""
 
-    def __init__(self, host, port, timeout=None, kind=None):
+    def __init__(self, host, port, timeout=DEFAULT_TIMEOUT, kind=None):
         self.host = host
         self.port  = port
         self.timeout = timeout
@@ -155,7 +155,8 @@ class Connection:
     def connect(self):
         self.disconnect()
         sock = socket.socket(socket.AF_INET, type=self.kind)
-        sock.settimeout(self.timeout)
+        if self.timeout != DEFAULT_TIMEOUT:
+            sock.settimeout(self.timeout)
         sock.connect((self.host, self.port))
         self.fobj = sock.makefile("rwb", buffering=0)
         self.socket = sock
@@ -247,7 +248,7 @@ class Mythen:
     # ------------------------------------------------------------------
     #   Commands
     # ------------------------------------------------------------------
-    def command(self, cmd, timeout=None):
+    def command(self, cmd, timeout=DEFAULT_TIMEOUT):
         """
         Method to send command to Mythen. It verifies if there are errors.
         :param cmd: Command
