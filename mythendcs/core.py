@@ -449,7 +449,7 @@ class Mythen:
         return value
 
     def set_module(self, value):
-        if value not in list(range(self.nmod)):
+        if value not in list(range(self.nmods)):
             raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
         self.command('-module %d' % value)
 
@@ -774,6 +774,10 @@ class Mythen:
         ntimes = int(time / 100e-9)
         self.command('-delafter %d' % ntimes)
 
+    def get_num_gates(self):
+        return to_int(self.command('-get gates'))
+
     def set_num_gates(self, gates):
         self.command('-gates %d' % gates)
 
+    num_gates = property(get_num_gates, set_num_gates)
