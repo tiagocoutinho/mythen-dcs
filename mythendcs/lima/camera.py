@@ -200,3 +200,13 @@ class Interface(HwInterface):
     def getNbHwAcquiredFrames(self):
         return self.acq.nb_acquired_frames if self.acq else 0
 
+
+def get_interface(url):
+    camera = Mythen.from_url(url)
+    interface = Interface(camera)
+    return interface
+
+
+def get_control(url):
+    interface = get_interface(url)
+    return CtControl(interface)

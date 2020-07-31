@@ -10,8 +10,8 @@ from limatb.cli import camera, url, table_style, max_width
 from limatb.info import info_list
 from limatb.network import get_subnet_addresses, get_host_by_addr
 
-from .camera import Interface
-from ..core import TCP_PORT, Mythen
+from ..core import TCP_PORT
+from .camera import get_interface
 
 
 @camera(name="mythendcs")
@@ -21,10 +21,8 @@ def mythendcs(ctx, url):
     """Dectris Mythen 2 specific commands"""
     if url is None:
         return
-    camera = Mythen.from_url(url)
-    interface = Interface(camera)
-    interface.camera = camera
-    ctx.obj['camera'] = camera
+    interface = get_interface(url)
+    ctx.obj['camera'] = interface.detector
     return interface
 
 
