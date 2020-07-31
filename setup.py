@@ -59,7 +59,7 @@ setup(
         ],
     },
     python_requires='>=3.5',
-    install_requires=['numpy (>=1.1)'],
+    install_requires=['numpy'],
     extras_require=extras_require
 )
 
