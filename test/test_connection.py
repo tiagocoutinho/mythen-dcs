@@ -36,9 +36,10 @@ def test_no_connection(host, port, kind):
 
 @pytest.mark.parametrize(
     "url, host, port, kind",
-    [("tcp://mythen.google.com:11223", "mythen.google.com", 11223, TCP),
-     ("udp://55.33.22.11:9988", "55.33.22.11", 9988, UDP)],
-    ids=["tcp", "udp"])
+    [("tcp://mythen.acme.org:11223", "mythen.acme.org", 11223, TCP),
+     ("udp://55.33.22.11:9988", "55.33.22.11", 9988, UDP),
+     ("mythen.acme.org:556", "mythen.acme.org", 556, TCP)],
+    ids=["tcp", "udp", "implicit-tcp"])
 def test_from_url(url, host, port, kind):
     conn = Connection.from_url(url)
     assert conn.socket is None
