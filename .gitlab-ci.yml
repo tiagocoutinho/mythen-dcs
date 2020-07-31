@@ -1,4 +1,4 @@
-image: "python:3.5-slim-stretch"
+image: "python:3.7"
 
 before_script:
 
@@ -15,7 +15,7 @@ build:
 tests:
   stage: test
   before_script:
-    - apt-get update -q && apt-get install -y -q python3-gevent python3-numpy python3-pytest python3-tango
+    - apt-get update -q && apt-get install -y -q python3-gevent python3-numpy python3-pytest
     - pip3 install pytest-cov "sinstruments>=1.1"
     - pip3 install --no-deps . .[all]
   script:
