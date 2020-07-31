@@ -22,19 +22,30 @@ version_buffer = pytest.mark.parametrize(
 
 
 @pytest.mark.parametrize(
-    "addr, expect_kind",
-    [(("127.0.0.1", TCP_PORT), TCP), (("127.0.0.1", UDP_PORT), UDP),
-     (("127.0.0.1", 10031, TCP), TCP), (("127.0.0.1", 10031, UDP), UDP)],
-    ids=["tcp", "udp", "tcp-forced", "udp-forced"])
-def test_no_connection(addr, expect_kind):
-    host, port = addr[:2]
-    if len(addr) == 2:
-        conn = Connection(host, port)
-    else:
-        conn = Connection(host, port, kind=addr[2])
+    "host, port, kind",
+    [("127.0.0.1", 10031, TCP), ("127.0.0.1", 10031, UDP)],
+    ids=["tcp", "udp"])
+def test_no_connection(host, port, kind):
+    conn = Connection(host, port, kind=kind)
     assert conn.socket is None
+    assert conn.host == host
+    assert conn.port == port
+    assert conn.kind == kind
     assert "pending" in repr(conn)
-    assert conn.kind == expect_kind
+
+
+@pytest.mark.parametrize(
+    "url, host, port, kind",
+    [("tcp://mythen.google.com:11223", "mythen.google.com", 11223, TCP),
+     ("udp://55.33.22.11:9988", "55.33.22.11", 9988, UDP)],
+    ids=["tcp", "udp"])
+def test_from_url(url, host, port, kind):
+    conn = Connection.from_url(url)
+    assert conn.socket is None
+    assert conn.host == host
+    assert conn.port == port
+    assert conn.kind == kind
+    assert "pending" in repr(conn)
 
 
 def test_connection(server):

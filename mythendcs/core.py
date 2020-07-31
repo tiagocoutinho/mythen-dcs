@@ -3,6 +3,7 @@ import struct
 import functools
 import threading
 import contextlib
+import urllib.parse
 
 import numpy as np
 
@@ -135,11 +136,11 @@ def guard_timeout(connection, timeout):
 class Connection:
     """Communication channel"""
 
-    def __init__(self, host, port, timeout=DEFAULT_TIMEOUT, kind=None):
+    def __init__(self, host, port, timeout=DEFAULT_TIMEOUT, kind=TCP):
         self.host = host
         self.port  = port
         self.timeout = timeout
-        self.kind = (UDP if port == UDP_PORT else TCP) if kind is None else kind
+        self.kind = kind
         self.socket = None
         self.fobj = None
         self.lock = threading.Lock()
@@ -151,6 +152,15 @@ class Connection:
         conn = "connected" if self.socket else "pending"
         kind = 'UDP' if self.kind == UDP else 'TCP'
         return "<{} {} {}>".format(kind, conn, (self.host, self.port))
+
+    @classmethod
+    def from_url(cls, url):
+        """Default scheme is TCP"""
+        if "://" not in url:
+            url = "tcp://" + url
+        url = urllib.parse.urlparse(url)
+        kind = UDP if url.scheme == "udp" else TCP
+        return cls(url.hostname, url.port, kind=kind)
 
     def connect(self):
         self.disconnect()
@@ -250,6 +260,19 @@ class Mythen:
         self.inputhigh = True
         self.outputhigh = True
         self.continuoustrigger = False
+
+    @classmethod
+    def from_url(cls, url):
+        if "://" not in url:
+            tmp_url = urllib.parse.urlparse("void://" + url)
+            scheme = "udp" if tmp_url.port == UDP_PORT else "tcp"
+            url = "{}://{}".format(scheme, url)
+        url = urllib.parse.urlparse(url)
+        scheme, port = url.scheme, url.port
+        if port is None:
+            port = UDP_PORT if scheme == "udp" else TCP_PORT
+        url = "{}://{}:{}".format(scheme, url.hostname, port)
+        return cls(Connection.from_url(url))
 
     # ------------------------------------------------------------------
     #   Commands

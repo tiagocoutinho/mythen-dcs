@@ -11,7 +11,7 @@ from limatb.info import info_list
 from limatb.network import get_subnet_addresses, get_host_by_addr
 
 from .camera import Interface
-from ..core import TCP, UDP, TCP_PORT, UDP_PORT, Mythen, Connection
+from ..core import TCP_PORT, Mythen
 
 
 @camera(name="mythendcs")
@@ -21,15 +21,7 @@ def mythendcs(ctx, url):
     """Dectris Mythen 2 specific commands"""
     if url is None:
         return
-    if "://" not in url:
-        url = ("udp://" if str(UDP_PORT) in url else "tcp://") + url
-    url = urllib.parse.urlparse(url)
-    scheme, port = url.scheme, url.port
-    if port is None:
-        port = UDP_PORT if scheme == "udp" else TCP_PORT
-    kind = UDP if scheme == "udp" else TCP
-    channel = Connection(url.hostname, port, kind=kind)
-    camera = Mythen(channel)
+    camera = Mythen.from_url(url)
     interface = Interface(camera)
     interface.camera = camera
     ctx.obj['camera'] = camera
