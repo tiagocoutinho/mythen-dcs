@@ -19,6 +19,7 @@ tests:
     - pip3 install pytest-cov "sinstruments>=1.1"
     - pip3 install --no-deps . .[all]
   script:
+    - python -c "import numpy"
     - pytest
   artifacts:
     paths:
