@@ -216,7 +216,12 @@ def to_float(d):
     return struct.unpack_from("<f", d)[0]
 
 
-to_int_list = functools.partial(np.frombuffer, dtype="<i4")
+def to_int_list(d):
+    return np.frombuffer(d, dtype="<i4")
+
+
+def to_float_list(d):
+    return np.frombuffer(d, dtype="<f4")
 
 
 class Mythen:
@@ -238,6 +243,7 @@ class Mythen:
         self.connection = connection
         self.buff = nmod * self.MAX_BUFF_SIZE_MODULE
         self.nchannels = nmod * self.MAX_CHANNELS
+        self.nmods = nmod
         self.frames = 1
         self.triggermode = False
         self.gatemode = False
@@ -284,7 +290,8 @@ class Mythen:
         :return: None
         """
         # takes 2s + 0.5s per module: make sure the timeout is setup properly
-        self.command('-reset', timeout=5)
+        timeout = 2.5 + 0.75 * self.nmods
+        self.command('-reset', timeout=timeout)
         self._frames = 1
 
     def autosettings(self, value):
@@ -619,7 +626,9 @@ class Mythen:
         :return: Value of the current Tau
         """
         raw_value = self.command('-get tau')
-        value = to_float(raw_value)
+        # the buffer we get is read-only (numpy view of raw_value).
+        # We need a copy to be able to process it (ns -> seconds)
+        value = to_float_list(raw_value).copy()
         value *= 100e-9
         return value
 
@@ -644,7 +653,7 @@ class Mythen:
         :return: Threshold value in keV.
         """
         raw_value = self.command('-get kthresh')
-        value = to_float(raw_value)
+        value = to_float_list(raw_value)
         return value
 
     @threshold.setter
@@ -655,7 +664,9 @@ class Mythen:
         """
         if value < 0:
             raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
-        self.command('-kthresh %f' % value)
+        # this command takes ~0.5s per module
+        timeout = 0.75 * self.nmods
+        self.command('-kthresh %f' % value, timeout=timeout)
 
     # ------------------------------------------------------------------
     #   Version

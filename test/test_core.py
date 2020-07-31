@@ -50,15 +50,14 @@ def test_queries(mythen):
     assert mythen.triggermode == bool(config["trigen"])
     assert mythen.continuoustrigger == bool(config["conttrigen"])
     assert mythen.gatemode == bool(config["gateen"])
-
-    # TODO fix in the core: value is per module
-#    assert mythen.tau == config["tau"][:nmods]
-#    assert mythen.threshold == config["kthresh"]
+    assert pytest.approx(mythen.tau * 1e7) == config["tau"][:nmods]
+    assert pytest.approx(mythen.threshold) == config["kthresh"][:nmods]
 
 
 @tcp_udp
 def test_commands(mythen):
     config = mythen.server.mythen.config
+    nmods = config["nmodules"]
 
     mythen.readoutbits = 8
     assert config["nbits"] == 8
@@ -83,6 +82,9 @@ def test_commands(mythen):
 
     mythen.set_active_modules(1)
     assert config["nmodules"] == 1
+
+    mythen.tau = 5.4E-7
+    assert pytest.approx(nmods*[5.4]) == config["tau"][:nmods]
 
 
 def test_command_bad_parameter(tcp_conn):

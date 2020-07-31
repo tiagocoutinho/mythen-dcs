@@ -416,6 +416,9 @@ class Mythen2(BaseDevice):
                 if frame is None:
                     break
                 yield frame
+        elif cmd in {"tau", "kthresh"}:
+            self.config[cmd] = self.config["nmodules"] * [float(data[0])]
+            yield OK
         else:
             assert len(data) == 1
             self[cmd] = data[0]
