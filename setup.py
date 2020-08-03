@@ -46,10 +46,10 @@ setup(
             'MythenDCS = mythendcs.server:main [tango]'
         ],
         "Lima_camera": [
-            "MythenDCS = mythendcs.lima.camera"
+            "MythenDCS = mythendcs.lima.camera [lima]"
         ],
         "Lima_tango_camera": [
-            "MythenDCS = mythendcs.lima.tango"
+            "MythenDCS = mythendcs.lima.tango [lima]"
         ],
         "limatb.cli.camera": [
             'MythenDCS=mythendcs.lima.cli:mythendcs [lima]'

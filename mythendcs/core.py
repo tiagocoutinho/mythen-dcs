@@ -262,7 +262,7 @@ class Mythen:
         self.continuoustrigger = False
 
     @classmethod
-    def from_url(cls, url):
+    def from_url(cls, url, nmod=1):
         if "://" not in url:
             tmp_url = urllib.parse.urlparse("void://" + url)
             scheme = "udp" if tmp_url.port == UDP_PORT else "tcp"
@@ -272,7 +272,7 @@ class Mythen:
         if port is None:
             port = UDP_PORT if scheme == "udp" else TCP_PORT
         url = "{}://{}:{}".format(scheme, url.hostname, port)
-        return cls(Connection.from_url(url))
+        return cls(Connection.from_url(url), nmod=nmod)
 
     # ------------------------------------------------------------------
     #   Commands

@@ -193,10 +193,11 @@ class MythenDCSDevice(PyTango.Device_4Impl):
     def init_device(self):
         self.info_stream('In %s::init_device()' % self.get_name())
         self.get_device_properties(self.get_device_class())
-        port = UDP_PORT
+        port, scheme = UDP_PORT, "udp"
         if self.Port == 'TCP':
-            port = TCP_PORT
-        self.mythen = Mythen(self.HostIP, port, self.Timeout, self.NMod)
+            port, scheme = TCP_PORT, "tcp"
+        url = "{}://{}:{}".format(scheme, self.HostIP, port)
+        self.mythen = Mythen.from_url(url, self.NMod)
         # Initialize attributes
         self.frames_readies = 0
         self.live_mode = False
