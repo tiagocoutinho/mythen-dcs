@@ -1,6 +1,4 @@
-image: "python:3.7"
-
-before_script:
+image: "debian:buster"
 
 stages:
   - build
@@ -9,20 +7,19 @@ stages:
 
 build:
   stage: build
+  before_script:
+    - apt-get update -q && apt-get install -y -q python3 python3-setuptools python3-pip
   script:
-    - python setup.py build sdist
+    - python3 setup.py build sdist
 
 tests:
   stage: test
   before_script:
-    - apt-get update -q && apt-get install -y -q python3-gevent python3-numpy python3-pytest
-    - pip install pytest-cov "sinstruments>=1.1"
-    - pip install --no-deps . .[all]
+    - apt-get update -q && apt-get install -y -q python3-setuptools python3-pip python3-gevent python3-numpy python3-pytest
+    - pip3 install pytest-cov "sinstruments>=1.1"
+    - pip3 install --no-deps . .[all]
   script:
-    - type python
-    - python -v
-    - python -c "import numpy"
-    - python -m pytest
+    - python3 -m pytest
   artifacts:
     paths:
       - .coverage.*
