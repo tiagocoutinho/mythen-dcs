@@ -701,7 +701,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
     # ------------------------------------------------------------------
     @ExceptionHandler
     def read_ImageData(self, the_att):
-        the_att.set_value(self.image_data[self.frames_readies])
+        the_att.set_value(self.image_data[:self.frames_readies])
 
     def is_ImageData_allowed(self, req_type):
         return self.get_state() in (DEV_STATE_ON, DEV_STATE_RUNNING)
