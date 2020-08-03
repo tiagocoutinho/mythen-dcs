@@ -184,7 +184,7 @@ class MythenDCSDevice(PyTango.Device_4Impl):
     #   Device destructor
     # ------------------------------------------------------------------
     def delete_device(self):
-        self.mythen.__del__()
+        self.mythen = None
         self.info_stream('In %s::delete_device()' % self.get_name())
 
     # ------------------------------------------------------------------
