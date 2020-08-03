@@ -16,11 +16,13 @@ tests:
   stage: test
   before_script:
     - apt-get update -q && apt-get install -y -q python3-gevent python3-numpy python3-pytest
-    - pip3 install pytest-cov "sinstruments>=1.1"
-    - pip3 install --no-deps . .[all]
+    - pip install pytest-cov "sinstruments>=1.1"
+    - pip install --no-deps . .[all]
   script:
+    - type python
+    - python -v
     - python -c "import numpy"
-    - pytest
+    - python -m pytest
   artifacts:
     paths:
       - .coverage.*
