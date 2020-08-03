@@ -22,7 +22,7 @@ tests:
     - python3 -m pytest
   artifacts:
     paths:
-      - .coverage.*
+      - htmlcov
     expire_in: 30 minutes
 
 pages:
@@ -30,6 +30,7 @@ pages:
   dependencies:
     - tests
   script:
+    - mkdir public
     - mv htmlcov public/coverage
   artifacts:
     paths:
