@@ -23,8 +23,7 @@ the input buffer since the protocol replies are a binary without terminator)::
     -get version
 
 
-External signal to trigger/gate mode can be simulated by configuring a TCP
-socket:
+An input trigger can be simulated by configuring a TCP socket
 
 .. code-block:: yaml
 
@@ -36,10 +35,10 @@ socket:
         url: :1030
       - type: tcp
         url: :1031
-      external_signal: :10031
+      trigger:
+        in: :10310
 
-The external signal socket listens for "trigger\n", "low\n" and "high\n"
-messages.
+The input trigger socket listens for "trigger\n", "low\n" and "high\n" messages.
 
 Example on how to acquire 10 frames with 1.1s exposure time with trigger start::
 
@@ -52,7 +51,7 @@ Example on how to acquire 10 frames with 1.1s exposure time with trigger start::
 At this point the simulator acquisition is armed and ready to receive a trigger
 to start acquisition. The trigger can be sent with::
 
-    $ nc 0 10031
+    $ nc 0 10310
     trigger
 """
 
@@ -63,6 +62,7 @@ import collections
 
 import gevent.event
 import gevent.queue
+import gevent.socket
 
 from sinstruments.simulator import BaseDevice, MessageProtocol
 
@@ -208,32 +208,29 @@ class Protocol(MessageProtocol):
 
 class BaseAcquisition:
     def __init__(
-        self, nb_frames, exposure_time, nb_channels, delay_before, delay_after
+        self, signal, log, nb_frames, exposure_time, nb_channels, delay_before, delay_after, gates
     ):
+        self.name = type(self).__name__
+        self.signal = signal
         self.nb_frames = nb_frames
         self.exposure_time = exposure_time
         self.nb_channels = nb_channels
         self.delay_before = delay_before
         self.delay_after = delay_after
+        self.nb_gates = gates
         self.finished = None
         self.exposing = False
         self.buffer = gevent.queue.Queue()
-        self._log = logging.getLogger("simulator.Mythen2")
-        self._trigger = gevent.event.Event()
-
-    def trigger(self):
-        if self._trigger is None:
-            self._log.warn("missed trigger")
-        else:
-            self._log.debug("trigger!")
-            self._trigger.set()
+        self._log = log.getChild(self.name)
 
     def run(self):
         self.finished = False
         frame_nb = -1
+        self._log.info("Start acquisition")
         try:
-            for frame_nb, frame in enumerate(self.steps()):
-                self.buffer.put(frame)
+            with self.signal:
+                for frame_nb, frame in enumerate(self.steps()):
+                    self.buffer.put(frame)
         except gevent.GreenletExit:
             if frame_nb < (self.nb_frames - 1):
                 frame = self.create_frame(frame_nb+1)
@@ -241,71 +238,172 @@ class BaseAcquisition:
             self.buffer.put(None)
         finally:
             self.finished = True
+            self._log.info("Finished acquisition")
 
     def steps(self):
-        raise NotImplementedError
+        for frame_nb in range(self.nb_frames):
+            yield self.acquire(frame_nb)
 
-    def create_frame(self, frame_nb):
+    def create_frame(self, frame_nb, exposure_time):
         return self.nb_channels * frame_nb.to_bytes(4, 'little', signed=True)
 
-    def expose(self):
+    def expose(self, frame_nb):
         self.exposing = True
+        self._log.debug("start exposure %d/%d...", frame_nb + 1, self.nb_frames)
+        self.signal.gate_high()
         gevent.sleep(self.exposure_time)
+        self.signal.gate_low()
         self.exposing = False
+        self._log.debug("finished exposure %d/%d...", frame_nb + 1, self.nb_frames)
+        return self.exposure_time
 
     def acquire(self, frame_nb):
-        self._log.debug("start acquiring frame #%d/%d...",
-                        frame_nb + 1, self.nb_frames)
-        if self.delay_before > 0:
-            gevent.sleep(self.delay_before)
-        self.expose()
+        self._log.debug("start acquiring %d/%d...", frame_nb + 1, self.nb_frames)
+        t = self.expose(frame_nb)
         if self.delay_after > 0:
             gevent.sleep(self.delay_after)
-        frame = self.create_frame(frame_nb)
-        self._log.debug("finished acquiring frame #%d/%d...",
-                        frame_nb + 1, self.nb_frames)
+        frame = self.create_frame(frame_nb, t)
+        self._log.debug("finished acquiring %d/%d...", frame_nb + 1, self.nb_frames)
         return frame
 
+    def trigger(self):
+        self._log.warn("trigger ignored")
 
-class InternalTriggerAcquisition(BaseAcquisition):
-    def steps(self):
-        for frame_nb in range(self.nb_frames):
-            yield self.acquire(frame_nb)
+    def gate_high(self):
+        self._log.warn("gate high ignored")
+
+    def gate_low(self):
+        self._log.warn("gate low ignored")
 
 
-class TriggerStartAcquisition(BaseAcquisition):
-    def steps(self):
+class InternalAcquisition(BaseAcquisition):
+    pass
+
+
+class BaseTriggerAcquisition(BaseAcquisition):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._trigger = gevent.event.Event()
+
+    def trigger(self):
+        if self._trigger is None:
+            self._log.warn("trigger ignored")
+        else:
+            self._log.debug("trigger!")
+            self._trigger.set()
+
+    def wait_for_trigger(self):
         self._trigger.wait()
+        self._trigger = None
+        if self.delay_before > 0:
+            gevent.sleep(self.delay_before)
+
+
+class SingleTriggerAcquisition(BaseTriggerAcquisition):
+    def steps(self):
+        self.wait_for_trigger()
         for frame_nb in range(self.nb_frames):
             yield self.acquire(frame_nb)
 
 
-class TriggerMultiAcquisition(BaseAcquisition):
+class ContinuousTriggerAcquisition(BaseTriggerAcquisition):
     def steps(self):
         for frame_nb in range(self.nb_frames):
-            self._trigger.wait()
-            # ignore triggers while acquiring
-            self._trigger = None
+            self.wait_for_trigger()
             yield self.acquire(frame_nb)
-            self._trigger = gevent.event.Event()
+            if frame_nb < self.nb_frames - 1:
+                self._trigger = gevent.event.Event()
 
 
-def start_acquisition(config, nb_frames=None):
+class GateAcquisition(BaseAcquisition):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._gate_high = gevent.event.Event()
+        self._gate_low = gevent.event.Event()
+
+    def gate_high(self):
+        self._gate_high.set()
+
+    def gate_low(self):
+        self._gate_low.set()
+
+    def wait_high(self):
+        self._gate_high.wait()
+        self._gate_high.clear()
+
+    def wait_low(self):
+        self._gate_low.wait()
+        self._gate_low.clear()
+
+    def expose(self, frame_nb):
+        gate_nb = 0
+        exposure_time = 0
+        nb_frames, nb_gates = self.nb_frames, self.nb_gates
+        while gate_nb < nb_gates:
+            self.wait_high()
+            self.exposing = True
+            start = time.time()
+            self.signal.gate_high()
+            self._log.debug("start exposure %d/%d (gate %d/%d)...",
+                            frame_nb + 1, nb_frames, gate_nb, nb_gates)
+            self.wait_low()
+            self.signal.gate_low()
+            self.exposing = False
+            exposure_time += time.time() - start
+            self._log.debug("finished exposure %d/%d (gate %d/%d)",
+                            frame_nb + 1, nb_frames, gate_nb, nb_gates)
+            gate_nb += 1
+        return exposure_time
+
+
+
+def start_acquisition(config, signal, log, nb_frames=None):
     nb_frames = config["frames"] if nb_frames is None else nb_frames
     exp_time = config["time"] * 1e-7
     delay_before, delay_after = config["delbef"] * 1e-7, config["delafter"] * 1e-7
     nb_channels = config["nmodules"] * config["modchannels"]
+    gates = config["gates"]
+    gate_enabled = config["gateen"]
     trigger_enabled, continuous_trigger = config["trigen"], config["conttrigen"]
-    if continuous_trigger:
-        klass = TriggerMultiAcquisition
+    if gate_enabled:
+        klass = GateAcquisition
+    elif continuous_trigger:
+        klass = ContinuousTriggerAcquisition
     elif trigger_enabled:
-        klass = TriggerStartAcquisition
+        klass = SingleTriggerAcquisition
     else:
-        klass = InternalTriggerAcquisition
-    acq = klass(nb_frames, exp_time, nb_channels, delay_before, delay_after)
+        klass = InternalAcquisition
+    acq = klass(signal, log, nb_frames, exp_time, nb_channels, delay_before, delay_after, gates)
     acq_task = gevent.spawn(acq.run)
     acq_task.acquisition = acq
     return acq_task
+
+
+class SignalOut:
+
+    def __init__(self, address=None):
+        if address is None:
+            self.socket = None
+        else:
+            host, port = address.rsplit(":", 1)
+            self.socket = gevent.socket.create_connection((host, int(port)))
+
+    def gate_high(self):
+        if self.socket:
+            self.socket.sendall(b"high\n")
+
+    def gate_low(self):
+        if self.socket:
+            self.socket.sendall(b"low\n")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, ext_type, exc_value, tb):
+        if self.socket:
+            self.socket.close()
 
 
 class Mythen2(BaseDevice):
@@ -313,26 +411,27 @@ class Mythen2(BaseDevice):
     protocol = Protocol
 
     def __init__(self, *args, **kwargs):
-        self.external_signal_address = kwargs.pop("external_signal", None)
+        trigger = kwargs.pop("trigger", {})
+        self.trigger_in_address = trigger.pop("in", None)
+        self.trigger_out_address = trigger.pop("out", None)
         super().__init__(*args, **kwargs)
         self.config = {name: t.default for name, t in TYPE_MAP.items()}
         self.config.update(self.props)
-        if self.external_signal_address:
-            self.external_signal_source = gevent.server.StreamServer(
-                self.external_signal_address, self.on_external_signal
+        if self.trigger_in_address:
+            self.trigger_in_source = gevent.server.StreamServer(
+                self.trigger_in_address, self.on_trigger_signal_in
             )
-            self.external_signal_source.start()
+            self.trigger_in_source.start()
             self._log.info(
-                "listenning for external signal plugs on %r",
-                self.external_signal_address,
+                "listenning for input trigger on TCP %s",
+                self.trigger_in_address,
             )
-
         self._signal_handler = {
             "trigger": lambda: self.acq.trigger(),
-            "high": lambda: self.acq.gate_up(),
-            "low": lambda: self.acq.gate_down(),
+            "high": lambda: self.acq.gate_high(),
+            "low": lambda: self.acq.gate_low(),
         }
-        self.start_acquisition(0)  # start dummy acquisition
+        self.acq_task = None
 
     def __getitem__(self, name):
         return TYPE_MAP[name].encode(self.config)
@@ -341,30 +440,43 @@ class Mythen2(BaseDevice):
         TYPE_MAP[name].decode(self.config, value)
 
     def start_acquisition(self, nb_frames=None):
-        self.acq_task = start_acquisition(self.config, nb_frames=nb_frames)
+        signal = SignalOut(self.trigger_out_address)
+        self.acq_task = start_acquisition(self.config, signal, self._log, nb_frames=nb_frames)
         return self.acq_task
 
-    def on_external_signal(self, sock, addr):
-        self._log.info("external signal source plugged: %r", addr)
+    def on_trigger_signal_in(self, sock, addr):
+        self._log.info("trigger input signal plugged: %r", addr)
         fobj = sock.makefile("rwb")
         while True:
             line = fobj.readline()
             if not line:
-                self._log.info("external signal unplugged %r", addr)
+                self._log.info("trigger input signal unplugged %r", addr)
                 return
             signal = line.strip().lower().decode()
-            handler = self._signal_handler.get(signal)
-            if handler is None:
-                self._log.warn("unknown signal %r from %r", signal, addr)
+            if self.acq is None:
+                self._log.warning("%r ignored", signal)
                 continue
+            else:
+                if signal == "trigger":
+                    handler = self.acq.trigger
+                elif signal == "high":
+                    handler = self.acq.gate_high
+                elif signal == "low":
+                    handler = self.acq.gate_low
+                else:
+                    self._log.warn("unknown signal %r from %r", signal, addr)
+                    continue
             try:
                 handler()
             except Exception as error:
-                self._log.error("error handling external signal %r: %r", signal, error)
+                self._log.error(
+                    "error handling trigger input signal %r: %r", signal, error
+                )
 
     @property
     def acq(self):
-        return self.acq_task.acquisition
+        if self.acq_task:
+            return self.acq_task.acquisition
 
     def status(self):
         running = 0 if self.acq_task.ready() else 1
