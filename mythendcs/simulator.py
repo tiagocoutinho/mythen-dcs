@@ -66,6 +66,7 @@ import gevent.socket
 
 from sinstruments.simulator import BaseDevice, MessageProtocol
 
+ns100 = 1E-7
 
 Type = collections.namedtuple("Type", "name encode decode default")
 
@@ -358,15 +359,19 @@ class GateAcquisition(BaseAcquisition):
         return exposure_time
 
 
-
-def start_acquisition(config, signal, log, nb_frames=None):
-    nb_frames = config["frames"] if nb_frames is None else nb_frames
-    exp_time = config["time"] * 1e-7
-    delay_before, delay_after = config["delbef"] * 1e-7, config["delafter"] * 1e-7
-    nb_channels = config["nmodules"] * config["modchannels"]
-    gates = config["gates"]
+def start_acquisition(config, signal, log):
     gate_enabled = config["gateen"]
-    trigger_enabled, continuous_trigger = config["trigen"], config["conttrigen"]
+    trigger_enabled = config["trigen"]
+    continuous_trigger = config["conttrigen"]
+    hardware_trigger = gate_enabled or trigger_enabled or continuous_trigger_enabled
+    internal_trigger = not hardware_trigger
+    # internal trigger does not support delay before frame (<=> delay after trigger)
+    delay_before = config["delbef"] * ns100 if hardware_trigger else 0
+    delay_after = config["delafter"] * ns100
+    exp_time = config["time"] * ns100
+    nb_channels = config["nmodules"] * config["modchannels"]
+    nb_gates = config["gates"] if gate_enabled else 1
+    nb_frames = config["frames"]
     if gate_enabled:
         klass = GateAcquisition
     elif continuous_trigger:
@@ -375,7 +380,7 @@ def start_acquisition(config, signal, log, nb_frames=None):
         klass = SingleTriggerAcquisition
     else:
         klass = InternalAcquisition
-    acq = klass(signal, log, nb_frames, exp_time, nb_channels, delay_before, delay_after, gates)
+    acq = klass(signal, log, nb_frames, exp_time, nb_channels, delay_before, delay_after, nb_gates)
     acq_task = gevent.spawn(acq.run)
     acq_task.acquisition = acq
     return acq_task
@@ -426,11 +431,6 @@ class Mythen2(BaseDevice):
                 "listenning for input trigger on TCP %s",
                 self.trigger_in_address,
             )
-        self._signal_handler = {
-            "trigger": lambda: self.acq.trigger(),
-            "high": lambda: self.acq.gate_high(),
-            "low": lambda: self.acq.gate_low(),
-        }
         self.acq_task = None
 
     def __getitem__(self, name):
@@ -439,18 +439,18 @@ class Mythen2(BaseDevice):
     def __setitem__(self, name, value):
         TYPE_MAP[name].decode(self.config, value)
 
-    def start_acquisition(self, nb_frames=None):
+    def start_acquisition(self):
         signal = SignalOut(self.trigger_out_address)
-        self.acq_task = start_acquisition(self.config, signal, self._log, nb_frames=nb_frames)
+        self.acq_task = start_acquisition(self.config, signal, self._log)
         return self.acq_task
 
     def on_trigger_signal_in(self, sock, addr):
-        self._log.info("trigger input signal plugged: %r", addr)
+        self._log.info("trigger input plugged: %r", addr)
         fobj = sock.makefile("rwb")
         while True:
             line = fobj.readline()
             if not line:
-                self._log.info("trigger input signal unplugged %r", addr)
+                self._log.info("trigger input unplugged %r", addr)
                 return
             signal = line.strip().lower().decode()
             if self.acq is None:
@@ -464,13 +464,13 @@ class Mythen2(BaseDevice):
                 elif signal == "low":
                     handler = self.acq.gate_low
                 else:
-                    self._log.warn("unknown signal %r from %r", signal, addr)
+                    self._log.warn("unknown %r from %r", signal, addr)
                     continue
             try:
                 handler()
             except Exception as error:
                 self._log.error(
-                    "error handling trigger input signal %r: %r", signal, error
+                    "error handling trigger input %r: %r", signal, error
                 )
 
     @property
