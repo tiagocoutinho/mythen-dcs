@@ -285,25 +285,28 @@ class BaseTriggerAcquisition(BaseAcquisition):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._trigger = gevent.event.Event()
+        self._gate_high = gevent.event.Event()
+        self._gate_low = gevent.event.Event()
+        self._gate_low.set()
 
-    def trigger(self):
-        if self._trigger is None:
-            self._log.warn("trigger ignored")
-        else:
-            self._log.debug("trigger!")
-            self._trigger.set()
+    def gate_high(self):
+        self._gate_low.clear()
+        self._gate_high.set()
 
-    def wait_for_trigger(self):
-        self._trigger.wait()
-        self._trigger = None
-        if self.delay_before > 0:
-            gevent.sleep(self.delay_before)
+    def gate_low(self):
+        self._gate_high.clear()
+        self._gate_low.set()
+
+    def wait_high(self):
+        self._gate_high.wait()
+
+    def wait_low(self):
+        self._gate_low.wait()
 
 
 class SingleTriggerAcquisition(BaseTriggerAcquisition):
     def steps(self):
-        self.wait_for_trigger()
+        self.wait_high()
         for frame_nb in range(self.nb_frames):
             yield self.acquire(frame_nb)
 
@@ -311,32 +314,14 @@ class SingleTriggerAcquisition(BaseTriggerAcquisition):
 class ContinuousTriggerAcquisition(BaseTriggerAcquisition):
     def steps(self):
         for frame_nb in range(self.nb_frames):
-            self.wait_for_trigger()
+            self.wait_high()
             yield self.acquire(frame_nb)
-            if frame_nb < self.nb_frames - 1:
-                self._trigger = gevent.event.Event()
 
 
-class GateAcquisition(BaseAcquisition):
+class GateAcquisition(BaseTriggerAcquisition):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._gate_high = gevent.event.Event()
-        self._gate_low = gevent.event.Event()
-
-    def gate_high(self):
-        self._gate_high.set()
-
-    def gate_low(self):
-        self._gate_low.set()
-
-    def wait_high(self):
-        self._gate_high.wait()
-        self._gate_high.clear()
-
-    def wait_low(self):
-        self._gate_low.wait()
-        self._gate_low.clear()
 
     def expose(self, frame_nb):
         gate_nb = 0
@@ -348,45 +333,45 @@ class GateAcquisition(BaseAcquisition):
             start = time.time()
             self.signal.gate_high()
             self._log.debug("start exposure %d/%d (gate %d/%d)...",
-                            frame_nb + 1, nb_frames, gate_nb, nb_gates)
+                            frame_nb + 1, nb_frames, gate_nb + 1, nb_gates)
             self.wait_low()
             self.signal.gate_low()
             self.exposing = False
             exposure_time += time.time() - start
             self._log.debug("finished exposure %d/%d (gate %d/%d)",
-                            frame_nb + 1, nb_frames, gate_nb, nb_gates)
+                            frame_nb + 1, nb_frames, gate_nb + 1, nb_gates)
             gate_nb += 1
         return exposure_time
 
 
-def start_acquisition(config, signal, log):
+def start_acquisition(config, signal_output, log):
     gate_enabled = config["gateen"]
     trigger_enabled = config["trigen"]
-    continuous_trigger = config["conttrigen"]
+    continuous_trigger_enabled = config["conttrigen"]
     hardware_trigger = gate_enabled or trigger_enabled or continuous_trigger_enabled
     internal_trigger = not hardware_trigger
     # internal trigger does not support delay before frame (<=> delay after trigger)
-    delay_before = config["delbef"] * ns100 if hardware_trigger else 0
-    delay_after = config["delafter"] * ns100
+    delay_before = 0 if internal_trigger else config["delbef"] * ns100
+    delay_after = 0 if gate_enabled or continuous_trigger_enabled else config["delafter"] * ns100
     exp_time = config["time"] * ns100
     nb_channels = config["nmodules"] * config["modchannels"]
     nb_gates = config["gates"] if gate_enabled else 1
     nb_frames = config["frames"]
     if gate_enabled:
         klass = GateAcquisition
-    elif continuous_trigger:
+    elif continuous_trigger_enabled:
         klass = ContinuousTriggerAcquisition
     elif trigger_enabled:
         klass = SingleTriggerAcquisition
     else:
         klass = InternalAcquisition
-    acq = klass(signal, log, nb_frames, exp_time, nb_channels, delay_before, delay_after, nb_gates)
+    acq = klass(signal_output, log, nb_frames, exp_time, nb_channels, delay_before, delay_after, nb_gates)
     acq_task = gevent.spawn(acq.run)
     acq_task.acquisition = acq
     return acq_task
 
 
-class SignalOut:
+class SignalOutput:
 
     def __init__(self, address=None):
         if address is None:
@@ -424,7 +409,7 @@ class Mythen2(BaseDevice):
         self.config.update(self.props)
         if self.trigger_in_address:
             self.trigger_in_source = gevent.server.StreamServer(
-                self.trigger_in_address, self.on_trigger_signal_in
+                self.trigger_in_address, self.on_signal_input
             )
             self.trigger_in_source.start()
             self._log.info(
@@ -440,11 +425,11 @@ class Mythen2(BaseDevice):
         TYPE_MAP[name].decode(self.config, value)
 
     def start_acquisition(self):
-        signal = SignalOut(self.trigger_out_address)
-        self.acq_task = start_acquisition(self.config, signal, self._log)
+        signal_output = SignalOutput(self.trigger_out_address)
+        self.acq_task = start_acquisition(self.config, signal_output, self._log)
         return self.acq_task
 
-    def on_trigger_signal_in(self, sock, addr):
+    def on_signal_input(self, sock, addr):
         self._log.info("trigger input plugged: %r", addr)
         fobj = sock.makefile("rwb")
         while True:
@@ -457,9 +442,7 @@ class Mythen2(BaseDevice):
                 self._log.warning("%r ignored", signal)
                 continue
             else:
-                if signal == "trigger":
-                    handler = self.acq.trigger
-                elif signal == "high":
+                if signal == "high":
                     handler = self.acq.gate_high
                 elif signal == "low":
                     handler = self.acq.gate_low
