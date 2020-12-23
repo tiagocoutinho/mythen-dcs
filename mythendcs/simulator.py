@@ -260,9 +260,9 @@ class BaseAcquisition:
 
     def acquire(self, frame_nb):
         self._log.debug("start acquiring %d/%d...", frame_nb + 1, self.nb_frames)
+        gevent.sleep(self.delay_before)
         t = self.expose(frame_nb)
-        if self.delay_after > 0:
-            gevent.sleep(self.delay_after)
+        gevent.sleep(self.delay_after)
         frame = self.create_frame(frame_nb, t)
         self._log.debug("finished acquiring %d/%d...", frame_nb + 1, self.nb_frames)
         return frame
