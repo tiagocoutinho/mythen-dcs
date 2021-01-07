@@ -209,10 +209,11 @@ class Protocol(MessageProtocol):
 
 class BaseAcquisition:
     def __init__(
-        self, signal, log, nb_frames, exposure_time, nb_channels, delay_before, delay_after, gates
+        self, input_signal, output_signal, log, nb_frames, exposure_time, nb_channels, delay_before, delay_after, gates
     ):
         self.name = type(self).__name__
-        self.signal = signal
+        self.input_signal = input_signal
+        self.output_signal = output_signal
         self.nb_frames = nb_frames
         self.exposure_time = exposure_time
         self.nb_channels = nb_channels
@@ -229,9 +230,8 @@ class BaseAcquisition:
         frame_nb = -1
         self._log.info("Start acquisition")
         try:
-            with self.signal:
-                for frame_nb, frame in enumerate(self.steps()):
-                    self.buffer.put(frame)
+            for frame_nb, frame in enumerate(self.steps()):
+                self.buffer.put(frame)
         except gevent.GreenletExit:
             if frame_nb < (self.nb_frames - 1):
                 frame = self.create_frame(frame_nb+1)
@@ -251,9 +251,9 @@ class BaseAcquisition:
     def expose(self, frame_nb):
         self.exposing = True
         self._log.debug("start exposure %d/%d...", frame_nb + 1, self.nb_frames)
-        self.signal.gate_high()
+        self.output_signal.gate_high()
         gevent.sleep(self.exposure_time)
-        self.signal.gate_low()
+        self.output_signal.gate_low()
         self.exposing = False
         self._log.debug("finished exposure %d/%d...", frame_nb + 1, self.nb_frames)
         return self.exposure_time
@@ -331,11 +331,11 @@ class GateAcquisition(BaseTriggerAcquisition):
             self.wait_high()
             self.exposing = True
             start = time.time()
-            self.signal.gate_high()
+            self.output_signal.gate_high()
             self._log.debug("start exposure %d/%d (gate %d/%d)...",
                             frame_nb + 1, nb_frames, gate_nb + 1, nb_gates)
             self.wait_low()
-            self.signal.gate_low()
+            self.output_signal.gate_low()
             self.exposing = False
             exposure_time += time.time() - start
             self._log.debug("finished exposure %d/%d (gate %d/%d)",
@@ -344,7 +344,7 @@ class GateAcquisition(BaseTriggerAcquisition):
         return exposure_time
 
 
-def start_acquisition(config, signal_output, log):
+def start_acquisition(config, input_signal, output_signal, log):
     gate_enabled = config["gateen"]
     trigger_enabled = config["trigen"]
     continuous_trigger_enabled = config["conttrigen"]
@@ -365,35 +365,74 @@ def start_acquisition(config, signal_output, log):
         klass = SingleTriggerAcquisition
     else:
         klass = InternalAcquisition
-    acq = klass(signal_output, log, nb_frames, exp_time, nb_channels, delay_before, delay_after, nb_gates)
+    acq = klass(input_signal, output_signal, log, nb_frames, exp_time, nb_channels, delay_before, delay_after, nb_gates)
     acq_task = gevent.spawn(acq.run)
     acq_task.acquisition = acq
     return acq_task
 
 
-class SignalOutput:
+def _udp_broadcast_socket():
+    sock = gevent.socket.socket(
+        gevent.socket.AF_INET, gevent.socket.SOCK_DGRAM, gevent.socket.IPPROTO_UDP
+    )
+    reuse = getattr(gevent.socket, "SO_REUSEPORT", gevent.socket.SO_REUSEADDR)
+    sock.setsockopt(gevent.socket.SOL_SOCKET, reuse, 1)
+    sock.setsockopt(gevent.socket.SOL_SOCKET, gevent.socket.SO_BROADCAST, 1)
+    return sock
 
-    def __init__(self, address=None):
-        if address is None:
-            self.socket = None
-        else:
-            host, port = address.rsplit(":", 1)
-            self.socket = gevent.socket.create_connection((host, int(port)))
+
+class SignalSource:
+
+    def __init__(self, port, initial_state=0):
+        self.sock = _udp_broadcast_socket()
+        self.address = "<broadcast>", port
+        self.state = initial_state
+
+    def send(self, data):
+        self.sock.sendto(data, self.address)
 
     def gate_high(self):
-        if self.socket:
-            self.socket.sendall(b"high\n")
+        if not self.state:
+            self.state = 1
+            self.send(f"high {time.time()}\n".encode())
 
     def gate_low(self):
-        if self.socket:
-            self.socket.sendall(b"low\n")
+        if self.state:
+            self.state = 0
+            self.send(f"low {time.time()}\n".encode())
 
-    def __enter__(self):
-        return self
+    def trigger(self, duration=1e-6):
+        self.gate_high()
+        gevent.sleep(duration)
+        self.gate_low()
 
-    def __exit__(self, ext_type, exc_value, tb):
-        if self.socket:
-            self.socket.close()
+
+class SignalSink:
+
+    def __init__(self, address, on_high=None, on_low=None):
+        self.sock = _udp_broadcast_socket()
+        host, port = address.rsplit(":", 1)
+        self.sock.bind((host, int(port)))
+        self.on_high = on_high or (lambda: None)
+        self.on_low = on_low or (lambda: None)
+        self.task = gevent.spawn(self._listen)
+
+    def __del__(self):
+        self.task.kill()
+
+    def _listen(self):
+        while True:
+            data, addr = self.sock.recvfrom(128)
+            f = None
+            if data.startswith(b"high"):
+                f = self.on_high
+            elif data.startswith(b"low"):
+                f = self.on_low
+            if f is not None:
+                try:
+                    f()
+                except Exception as error:
+                    logging.error("signal sink %s callback error: %r", data, error)
 
 
 class Mythen2(BaseDevice):
@@ -401,21 +440,25 @@ class Mythen2(BaseDevice):
     protocol = Protocol
 
     def __init__(self, *args, **kwargs):
-        trigger = kwargs.pop("trigger", {})
-        self.trigger_in_address = trigger.pop("in", None)
-        self.trigger_out_address = trigger.pop("out", None)
+        trigger = kwargs.pop("signal", {})
+        input_signal_address = trigger.pop("in", None)
+        output_signal_address = trigger.pop("out", None)
         super().__init__(*args, **kwargs)
         self.config = {name: t.default for name, t in TYPE_MAP.items()}
         self.config.update(self.props)
-        if self.trigger_in_address:
-            self.trigger_in_source = gevent.server.StreamServer(
-                self.trigger_in_address, self.on_signal_input
+        if input_signal_address:
+            self.input_signal = SignalSink(
+                input_signal_address,
+                on_high=self._on_high_input_signal,
+                on_low=self._on_low_input_signal
             )
-            self.trigger_in_source.start()
-            self._log.info(
-                "listenning for input trigger on TCP %s",
-                self.trigger_in_address,
-            )
+        if output_signal_address:
+            if isinstance(output_signal_address, int):
+                port = output_signal_address
+            else:
+                host, port = output_signal_address.rsplit(":", 1)
+                port = int(port)
+            self.output_signal = SignalSource(port)
         self.acq_task = None
 
     def __getitem__(self, name):
@@ -424,37 +467,17 @@ class Mythen2(BaseDevice):
     def __setitem__(self, name, value):
         TYPE_MAP[name].decode(self.config, value)
 
-    def start_acquisition(self):
-        signal_output = SignalOutput(self.trigger_out_address)
-        self.acq_task = start_acquisition(self.config, signal_output, self._log)
-        return self.acq_task
+    def _on_high_input_signal(self):
+        acq = self.acq
+        acq and acq.gate_high()
 
-    def on_signal_input(self, sock, addr):
-        self._log.info("trigger input plugged: %r", addr)
-        fobj = sock.makefile("rwb")
-        while True:
-            line = fobj.readline()
-            if not line:
-                self._log.info("trigger input unplugged %r", addr)
-                return
-            signal = line.strip().lower().decode()
-            if self.acq is None:
-                self._log.warning("%r ignored", signal)
-                continue
-            else:
-                if signal == "high":
-                    handler = self.acq.gate_high
-                elif signal == "low":
-                    handler = self.acq.gate_low
-                else:
-                    self._log.warn("unknown %r from %r", signal, addr)
-                    continue
-            try:
-                handler()
-            except Exception as error:
-                self._log.error(
-                    "error handling trigger input %r: %r", signal, error
-                )
+    def _on_low_input_signal(self):
+        acq = self.acq
+        acq and acq.gate_low()
+
+    def start_acquisition(self):
+        self.acq_task = start_acquisition(self.config, self.input_signal, self.output_signal, self._log)
+        return self.acq_task
 
     @property
     def acq(self):
