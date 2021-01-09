@@ -260,10 +260,12 @@ class BaseAcquisition:
 
     def acquire(self, frame_nb):
         self._log.debug("start acquiring %d/%d...", frame_nb + 1, self.nb_frames)
-        gevent.sleep(self.delay_before)
         t = self.expose(frame_nb)
-        gevent.sleep(self.delay_after)
+        start_readout = time.monotonic()
         frame = self.create_frame(frame_nb, t)
+        end_readout = time.monotonic()
+        delay = max(0, self.delay_after - (end_readout - start_readout))
+        gevent.sleep(delay)
         self._log.debug("finished acquiring %d/%d...", frame_nb + 1, self.nb_frames)
         return frame
 
@@ -307,6 +309,7 @@ class BaseTriggerAcquisition(BaseAcquisition):
 class SingleTriggerAcquisition(BaseTriggerAcquisition):
     def steps(self):
         self.wait_high()
+        gevent.sleep(self.delay_before)
         for frame_nb in range(self.nb_frames):
             yield self.acquire(frame_nb)
 
@@ -315,6 +318,7 @@ class ContinuousTriggerAcquisition(BaseTriggerAcquisition):
     def steps(self):
         for frame_nb in range(self.nb_frames):
             self.wait_high()
+            gevent.sleep(self.delay_before)
             yield self.acquire(frame_nb)
 
 
