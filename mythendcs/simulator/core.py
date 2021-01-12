@@ -485,8 +485,7 @@ class Mythen2(BaseDevice):
 
     @property
     def acq(self):
-        if self.acq_task:
-            return self.acq_task.acquisition
+        return None if self.acq_task is None else self.acq_task.acquisition
 
     def status(self):
         running = 0 if self.acq_task.ready() else 1
