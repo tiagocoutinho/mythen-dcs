@@ -487,10 +487,14 @@ class Mythen2(BaseDevice):
         return None if self.acq_task is None else self.acq_task.acquisition
 
     def status(self):
-        running = 0 if self.acq_task.ready() else 1
-        exposing = (1 << 3 if self.acq.exposing else 0) if running else 0
-        readout = 1 << 16 if self.acq.buffer.empty() else 0
-        return struct.pack("<i", running | exposing | readout)
+        acq_task = self.acq_task
+        if acq_task is None:
+            running = exposing = readout = 0
+        else:
+            running = 0 if self.acq_task.ready() else 1
+            exposing = (1 if self.acq.exposing else 0) if running else 0
+            readout = 1 if self.acq.buffer.empty() else 0
+        return struct.pack("<i", running | (exposing << 3) | (readout<< 16))
 
     def handle_message(self, message):
         self._log.info("handling: %r", message)
