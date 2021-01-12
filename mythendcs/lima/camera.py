@@ -6,11 +6,12 @@ import numpy
 
 from Lima.Core import (
     HwInterface, HwDetInfoCtrlObj, HwSyncCtrlObj, HwBufferCtrlObj, HwCap,
-    HwFrameInfoType, SoftBufferCtrlObj, Size, FrameDim, Bpp32,
+    HwFrameInfoType, SoftBufferCtrlObj, Size, FrameDim, Bpp8, Bpp16, Bpp32,
     Timestamp, AcqReady, AcqRunning, CtControl, CtSaving,
     IntTrig, ExtTrigSingle, ExtTrigMult, ExtGate)
 
-from ..core import Mythen, Connection, TCP_PORT
+from ..core import mythen_for_url
+from ..group import ChainGroup
 
 
 Status = HwInterface.StatusType
@@ -78,30 +79,46 @@ class Sync(HwSyncCtrlObj):
 class DetInfo(HwDetInfoCtrlObj):
 
     image_type = Bpp32
-    max_image_size = Size(1280 * 24, 1)
+    ImageTypeMap = {
+        4: Bpp8,
+        8: Bpp8,
+        16: Bpp16,
+        24: Bpp32
+    }
 
     def __init__(self, detector):
         self.detector = detector
         super().__init__()
 
     def getMaxImageSize(self):
-        return Size(self.detector.get_active_modules() * 1280, 1)
+        return Size(self.detector.num_channels, 1)
 
     def getDetectorImageSize(self):
-        return Size(self.detector.get_active_modules() * 1280, 1)
+        return Size(self.detector.num_channels, 1)
 
     def getDefImageType(self):
-        return type(self).image_type
+        return Bpp32
 
     def getCurrImageType(self):
-        return self.image_type
+        return self.ImageTypeMap[self.detector.readoutbits]
 
     def setCurrImageType(self, image_type):
-        if image_type != self.image_type:
-            raise ValueError("unsupported detector image type")
+        if image_type == Bpp8:
+            readoutbits = 8
+        elif image_type == Bpp16:
+            readoutbits = 16
+        elif image_type in {Bpp24, Bpp32}:
+            readoutbits = 24
+        else:
+            raise ValueError("Unsupported image type {!r}".format(image_type))
+        self.detector.readoutbits = readoutbits
 
     def getPixelSize(self):
-        return (50.0, 50.0)
+        # in micrometer
+        width = self.detector.module_sensor_widths.mean()
+        # is height 4/8 mm or the sensor thickness ?
+        height = self.detector.module_sensor_thicknesses.mean()
+        return width, height
 
     def getDetectorType(self):
         return "Mythen2"
@@ -153,7 +170,7 @@ class Acquisition:
             # don't know why the sip.voidptr has no size
             buff.setsize(frame_size)
             data = numpy.frombuffer(buff, dtype='<i4')
-            detector.readout_into(data)
+            detector.readout(buff=data)
             frame_info = frame_infos[frame_nb]
             frame_info.acq_frame_nb = frame_nb
             buff_mgr.newFrameReady(frame_info)
@@ -202,7 +219,10 @@ class Interface(HwInterface):
 
 
 def get_interface(url):
-    camera = Mythen.from_url(url)
+    if isinstance(url, str):
+        camera = mythen_for_url(url)
+    else:
+        camera = ChainGroup(*[mythen_for_url(addr) for addr in url])
     interface = Interface(camera)
     return interface
 
