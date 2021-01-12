@@ -187,7 +187,10 @@ class Connection:
             size = len(buff)
         offset, view = 0, memoryview(buff)
         while offset < size:
-            offset += self.socket.recv_into(view[offset:])
+            n = self.socket.recv_into(view[offset:])
+            if not n:
+                raise ConnectionError("Expected {} bytes. Got {}".format(size, n))
+            offset += n
         return buff
 
     @ensure_connection
