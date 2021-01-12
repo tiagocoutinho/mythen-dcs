@@ -7,6 +7,7 @@ import numpy as np
 class ChainGroup:
     """
     Group of Mythen DCS chained together.
+
     * Assumes each mythen DCS in the chain connects it's output signal to the
       input signal of the next mythen DCS.
     * The first mythen is called the "master".
@@ -88,10 +89,10 @@ class ChainGroup:
         self.mythen_master.start()
 
     def stop(self):
-        return self._map(self.mythen_type.stop)
+        self._map(self.mythen_type.stop)
 
     def reset(self):
-        return self._map(self.mythen_type.reset)
+        self._map(self.mythen_type.reset)
 
     @property
     def num_channels(self):
