@@ -979,7 +979,8 @@ class Mythen4(Mythen):
                 assert n <= buff_nb_frames
         flat = buff[:]
         flat.shape = flat.size
-        self.connection.write('-readout {}'.format(n).encode())
+        cmd = '-readout' if n == 1 else '-readout {}'.format(n)
+        self.connection.write(cmd.encode())
         for i in range(n):
             offset = i*frame_channels
             view = flat[offset:offset + frame_channels]

@@ -109,6 +109,18 @@ class ChainGroup:
             mythen.flatfieldconf = value[offset:end]
             offset = end
 
+    def readout(self, buff=None):
+        if buff is None:
+            buff = np.empty(self.num_channels, '<i4')
+        offset, futures = 0, []
+        for mythen in self.mythens:
+            num_channels = mythen.num_channels
+            view = buff[offset:offset + num_channels]
+            offset += num_channels
+            futures.append(self._exec.submit(mythen.readout_into, view))
+        concurrent.futures.wait(futures)
+        return buff
+
     def ireadout(self, n=None, buff=None):
         frame_channels = self.num_channels
         frame_bytes = frame_channels * 4
@@ -133,7 +145,7 @@ class ChainGroup:
             offset += num_channels
 
         write = type(self.mythen_master.connection).write
-        cmd = '-readout {}'.format(n).encode()
+        cmd = ('-readout' if n == 1 else '-readout {}'.format(n)).encode()
         results = [
             self._exec.submit(write, connection, cmd)
             for connection in connections
