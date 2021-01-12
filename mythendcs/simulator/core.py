@@ -162,7 +162,7 @@ TYPES = (
     Int("systemnum", 893278),
     FloatArrayNMod("temperature", [308.32, 310.323, 305.4927, 302.4483]),
     Str("testversion", "simula\x00"),
-    Str("version", "M4.0.1\x00"),
+    Str("version", "M4.1.0\x00"),
     Long("time", 10_000_000),
     Int("nbits", 24),
     Int("frames", 1),
