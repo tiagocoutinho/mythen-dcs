@@ -60,11 +60,11 @@ def detector_table(detectors):
     import beautifultable
 
     width = click.get_terminal_size()[0]
-    table = beautifultable.BeautifulTable(max_width=width)
+    table = beautifultable.BeautifulTable(maxwidth=width)
 
-    table.column_headers = ["Host", "IP", "Port", "Version"]
+    table.columns.header = ["Host", "IP", "Port", "Version"]
     for detector in detectors:
-        table.append_row(
+        table.rows.append(
             (detector["host"], detector["address"],
              detector["port"], detector["version"])
         )
@@ -86,5 +86,5 @@ def mythen_scan(port, timeout, table_style, max_width):
     table = asyncio.run(scan(port, timeout))
     style = getattr(table, "STYLE_" + table_style.upper())
     table.set_style(style)
-    table.max_table_width = max_width
+    table.maxwidth = max_width
     click.echo(table)

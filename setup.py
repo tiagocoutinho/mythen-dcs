@@ -12,7 +12,7 @@ long_description = 'Tango Device Server (DS) to have the remote control of '\
 extras_require = {
     "tango" : ["PyTango>=7.1"],
     "simulator": ["sinstruments>=1.1", "gevent"],
-    "lima": ["lima-toolbox>=1"],  # one day Lima might be on Pypi
+    "lima": ["lima-toolbox>=1", "beautifultable>=1", "click"],
 }
 extras_require["all"] = list(
     set.union(*(set(i) for i in extras_require.values()))
@@ -52,16 +52,13 @@ setup(
             "MythenDCS = mythendcs.lima.tango [lima]"
         ],
         "limatb.cli.camera": [
-            'MythenDCS=mythendcs.lima.cli:mythendcs [lima]'
+            'MythenDCS = mythendcs.lima.cli:mythendcs [lima]'
         ],
         "limatb.cli.camera.scan": [
-            "MythenDCS=mythendcs.lima.cli:scan [lima]"
+            "MythenDCS = mythendcs.lima.cli:scan [lima]"
         ],
     },
     python_requires='>=3.5',
     install_requires=['numpy'],
     extras_require=extras_require
 )
-
-
-
