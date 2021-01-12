@@ -233,7 +233,7 @@ class BaseAcquisition:
                 self.buffer.put(frame)
         except gevent.GreenletExit:
             if frame_nb < (self.nb_frames - 1):
-                frame = self.create_frame(frame_nb+1)
+                frame = self.create_frame(frame_nb+1, self.exposure_time)
                 self.buffer.put(frame)
             self.buffer.put(None)
         finally:
