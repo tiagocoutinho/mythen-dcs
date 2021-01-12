@@ -156,8 +156,8 @@ TYPES = (
     Int("nmaxmodules", 4),
     Int("nmodules", 4),
     IntArrayNMod("sensormaterial", [0, 0, 0, 0]),
-    IntArrayNMod("sensorthickness", [23, 65, 128, 40]),
-    IntArrayNMod("sensorwidth", [678, 432, 4342, 3232]),
+    IntArrayNMod("sensorthickness", 4*[450]),  # 320, 450 or 1000 um
+    IntArrayNMod("sensorwidth", 4*[50]),
     Int("systemnum", 893278),
     FloatArrayNMod("temperature", [308.32, 310.323, 305.4927, 302.4483]),
     Str("testversion", "simula\x00"),
