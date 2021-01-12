@@ -32,7 +32,10 @@ async def test_communication(address, port):
         writer.write(b"-get version")
         await writer.drain()
         data = (await reader.readexactly(7)).decode().strip()
-        host = (await get_host_by_addr(address)).name
+        try:
+            host = (await get_host_by_addr(address)).name
+        except:
+            host = address
         return dict(version=data, host=host, address=address, port=port)
 
 
