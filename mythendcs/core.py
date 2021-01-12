@@ -177,6 +177,9 @@ class Connection:
             self.socket = None
             self.fobj = None
 
+    def fileno(self):
+        return None if self.socket is None else self.socket.fileno()
+
     def _read_exactly_into(self, buff):
         try:
             size = buff.nbytes
