@@ -240,6 +240,33 @@ def to_float_list(d):
     return np.frombuffer(d, dtype="<f4")
 
 
+def command(connection, cmd, size=8192, timeout=DEFAULT_TIMEOUT):
+    """
+    Send command to Mythen. It verifies if there are errors.
+    :param cmd: Command
+    :return: Answer
+    """
+    cmd = cmd.encode() if isinstance(cmd, str) else cmd
+    try:
+        raw_value = connection.write_read(cmd, size, timeout=timeout)
+    except socket.timeout:
+        raise MythenError(ERR_MYTHEN_COMM_TIMEOUT)
+
+    # sizeof(int)
+    if len(raw_value) == 4:
+        value = to_int(raw_value)
+        if value < 0:
+            raise MythenError(value)
+    return raw_value
+
+
+def version(connection, timeout=DEFAULT_TIMEOUT):
+    value = command(connection, '-get version', timeout=timeout)
+    if len(value) != 7:
+        raise MythenError(ERR_MYTHEN_COMM_LENGTH)
+    return [int(part) for part in value[1:-1].split(b'.')]
+
+
 class Mythen:
     """
     Class to control the Mythen. Exported API:
@@ -289,18 +316,7 @@ class Mythen:
         :param cmd: Command
         :return: Answer
         """
-        cmd = cmd.encode() if isinstance(cmd, str) else cmd
-        try:
-            raw_value = self.connection.write_read(cmd, self.buff, timeout=timeout)
-        except socket.timeout:
-            raise MythenError(ERR_MYTHEN_COMM_TIMEOUT)
-
-        # sizeof(int)
-        if len(raw_value) == 4:
-            value = to_int(raw_value)
-            if value < 0:
-                raise MythenError(value)
-        return raw_value
+        return command(self.connection, cmd, size=self.buff, timeout=timeout)
 
     def start(self):
         """
