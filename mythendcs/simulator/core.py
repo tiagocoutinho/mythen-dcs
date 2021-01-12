@@ -52,7 +52,8 @@ At this point the simulator acquisition is armed and ready to receive a trigger
 to start acquisition. The trigger can be sent with::
 
     $ nc 0 10310
-    trigger
+    high
+    low
 """
 
 import time
