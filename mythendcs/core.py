@@ -10,6 +10,8 @@ import numpy as np
 COUNTER_BITS = [4, 8, 16, 24]
 
 SETTINGS_MODES = ['StdCu', 'StdMo', 'HgCr', 'HgCu', 'FastCu', 'FastMo']
+SETTINGS = ['Cu', 'Mo', 'Cr', 'Ag']
+MATERIALS = {0: 'Si'}
 
 TCP_PORT = 1031
 UDP_PORT = 1030
@@ -22,6 +24,7 @@ ERR_MYTHEN_COMM_TIMEOUT = -41
 ERR_MYTHEN_READOUT = -42
 ERR_MYTHEN_SETTINGS = -43
 ERR_MYTHEN_BAD_PARAMETER = -44
+ERR_MYHEN_CMD_REMOVED = -45
 
 ERRORS = {
     -1: 'Unknown command',
@@ -64,7 +67,8 @@ ERRORS = {
     ERR_MYTHEN_COMM_TIMEOUT:'Error timed out, the device did not respond.',
     ERR_MYTHEN_READOUT: 'Error with the readout command.',
     ERR_MYTHEN_SETTINGS: 'Return and unknown settings code ({0}).',
-    ERR_MYTHEN_BAD_PARAMETER: 'Bad parameter.'
+    ERR_MYTHEN_BAD_PARAMETER: 'Bad parameter.',
+    ERR_MYHEN_CMD_REMOVED: 'Mythen command not supported anymore'
 }
 
 
@@ -470,6 +474,9 @@ class Mythen:
         value = to_int(raw_value)
         return value
 
+    def set_active_modules(self, modules):
+        self.command('-nmodules %d' % modules)
+
     def set_module(self, value):
         if value not in list(range(self.nmods)):
             raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
@@ -616,30 +623,6 @@ class Mythen:
     def readout_into(self, buff):
         return self.connection.write_read_exactly_into(b'-readout', buff)
 
-    def ireadout(self, n=None, buff=None):
-        # TODO: assert mythen version >= 4 (-readout 'n' only appears in v4)
-        # TODO: should calculate nb channels based on nb active modules
-        frame_channels = self.nchannels
-        frame_bytes = frame_channels * 4
-        if buff is None:
-            if n is None:
-                n = 1
-            buff = np.empty((n, frame_channels), '<i4')
-        else:
-            buff_nb_frames = buff.nbytes // frame_bytes
-            if n is None:
-                n = buff_nb_frames
-            else:
-                assert n == buff_nb_frames
-        flat = buff[:]
-        flat.shape = flat.size
-        self.connection.write('-readout {}'.format(n).encode())
-        for i in range(n):
-            offset = i*frame_channels
-            view = flat[offset:offset + frame_channels]
-            self.connection.read_exactly_into(view)
-            yield i, view, buff
-
     # ------------------------------------------------------------------
     #   Readout Bits
     # ------------------------------------------------------------------
@@ -785,16 +768,23 @@ class Mythen:
         self.command('-inpol %d' % int(value))
         self._inputhigh = value
 
-    def set_active_modules(self, modules):
-        self.command('-nmodules %d' % modules)
+    def get_delay_trigger(self):
+        return to_int(self.command('-get delbef')) * 100e-9
 
     def set_delay_trigger(self, time):
         ntimes = int(time / 100e-9)
         self.command('-delbef %d' % ntimes)
 
+    delay_trigger = property(get_delay_trigger, set_delay_trigger)
+
+    def get_delay_frame(self):
+        return to_int(self.command('-get delafter')) * 100e-9
+
     def set_delay_frame(self, time):
         ntimes = int(time / 100e-9)
         self.command('-delafter %d' % ntimes)
+
+    delay_frame = property(get_delay_frame, set_delay_frame)
 
     def get_num_gates(self):
         return to_int(self.command('-get gates'))
@@ -803,3 +793,216 @@ class Mythen:
         self.command('-gates %d' % gates)
 
     num_gates = property(get_num_gates, set_num_gates)
+
+
+class Mythen4(Mythen):
+
+    def __init__(self, connection, nmod=None):
+        self._num_module_channels = None
+        self.connection = connection
+        self.buff = (nmod or 4) * self.MAX_BUFF_SIZE_MODULE
+        if nmod is None:
+            nmod = self.active_modules
+        self.active_modules = nmod
+        self.frames = 1
+        self.triggermode = False
+        self.gatemode = False
+        self.continuoustrigger = False
+
+    def _update(self):
+        self._num_module_channels = None
+        active_modules = self.active_modules
+        channels = self.num_module_channels
+        nchannels = channels.sum()
+        self.nmods = active_modules
+        self.nchannels = nchannels
+        self.buff = 4 * nchannels # 4 == sizeof(int32)
+
+    def get_active_modules(self):
+        return super().get_active_modules()
+
+    def set_active_modules(self, value):
+        super().set_active_modules(value)
+        self._update()
+
+    active_modules = property(get_active_modules, set_active_modules)
+
+    @property
+    def num_module_channels(self):
+        """Returns the number of channels for each module."""
+        if self._num_module_channels is None:
+            raw_value = self.command('-get modchannels')
+            self._num_module_channels = to_int_list(raw_value)
+        return self._num_module_channels
+
+    @property
+    def num_channels(self):
+        """Returns the total number of channels"""
+        return self.num_module_channels.sum()
+
+    @property
+    def max_num_modules(self):
+        return to_int(self.command("-get nmaxmodules"))
+
+    @property
+    def max_frame_rate(self):
+        return to_float(self.command("-get frameratemax"))
+
+    @property
+    def assembly_date(self):
+        return self.command("-get assemblydate").strip(b'\x00').decode()
+
+    @property
+    def firmware_version(self):
+        return self.command("-get fwversion").strip(b'\x00').decode()
+
+    @property
+    def system_serial_number(self):
+        return to_int(self.command("-get systemnum"))
+
+    @property
+    def temperature(self):
+        return to_float(self.command("-get dcstemperature"))
+
+    def get_module(self):
+        return to_int(self.command("-get module"))
+
+    def set_module(self, value):
+        return super().set_module(value)
+
+    module = property(get_module, set_module)
+
+    @property
+    def module_high_voltages(self):
+        return to_int_list(self.command("-get hv"))
+
+    @property
+    def module_temperatures(self):
+        return to_float_list(self.command("-get temperature"))
+
+    @property
+    def module_humidities(self):
+        return to_float_list(self.command("-get humidity"))
+
+    @property
+    def module_serial_numbers(self):
+        return to_int_list(self.command("-get modnum"))
+
+    @property
+    def module_firmware_versions(self):
+        raw_data = self.command("-get modfwversion").strip(b'\x00').decode()
+        return [raw_data[i:i+8] for i in range(0, len(raw_data), 8)]
+
+    @property
+    def module_sensor_materials(self):
+        materials = to_int_list(self.command("-get sensormaterial"))
+        return [MATERIALS[material] for material in materials]
+
+    @property
+    def module_sensor_thicknesses(self):
+        """sensors thickness (μm)"""
+        return to_int_list(self.command("-get sensorthickness"))
+
+    @property
+    def module_sensor_widths(self):
+        """sensors width (μm)"""
+        return to_int_list(self.command("-get sensorwidth"))
+
+    @property
+    def energy(self):
+        return to_float_list(self.command("-get energy"))
+
+    @energy.setter
+    def energy(self, value):
+        return self.command("-energy {}".format(value))
+
+    @property
+    def cutoff(self):
+        return to_int(self.command('-get cutoff'))
+
+    @cutoff.setter
+    def cutoff(self, value):
+        self.command('-cutoff %d' % value)
+
+    @property
+    def outputhigh(self):
+        raise MythenError(ERR_MYHEN_CMD_REMOVED)
+
+    @outputhigh.setter
+    def outputhigh(self, value):
+        raise MythenError(ERR_MYHEN_CMD_REMOVED)
+
+    @property
+    def inputhigh(self):
+        raise MythenError(ERR_MYHEN_CMD_REMOVED)
+
+    @inputhigh.setter
+    def inputhigh(self, value):
+        raise MythenError(ERR_MYHEN_CMD_REMOVED)
+
+    @property
+    def settingsmode(self):
+        raise MythenError(ERR_MYHEN_CMD_REMOVED)
+
+    @settingsmode.setter
+    def settingsmode(self, value):
+        raise MythenError(ERR_MYHEN_CMD_REMOVED)
+
+    def autosettings(self, value):
+        raise MythenError(ERR_MYHEN_CMD_REMOVED)
+
+    @property
+    def settings(self):
+        raise MythenError(ERR_MYHEN_CMD_REMOVED)
+
+    @settings.setter
+    def settings(self, value):
+        """
+        :param value: String with the setting mode: Cu, Mo, Cr, Ag
+        """
+        if value not in SETTINGS:
+            raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
+        self.command('-settings %s' % value)
+
+    def ireadout(self, n=None, buff=None):
+        frame_channels = self.nchannels
+        frame_bytes = frame_channels * 4
+        if buff is None:
+            if n is None:
+                n = 1
+            buff = np.empty((n, frame_channels), '<i4')
+        else:
+            buff_nb_frames = buff.nbytes // frame_bytes
+            if n is None:
+                n = buff_nb_frames
+            else:
+                assert n <= buff_nb_frames
+        flat = buff[:]
+        flat.shape = flat.size
+        self.connection.write('-readout {}'.format(n).encode())
+        for i in range(n):
+            offset = i*frame_channels
+            view = flat[offset:offset + frame_channels]
+            self.connection.read_exactly_into(view)
+            yield i, view, buff
+
+
+def mythen_for_url(url, nmod=None):
+    if "://" not in url:
+        tmp_url = urllib.parse.urlparse("void://" + url)
+        scheme = "udp" if tmp_url.port == UDP_PORT else "tcp"
+        url = "{}://{}".format(scheme, url)
+    url = urllib.parse.urlparse(url)
+    scheme, port = url.scheme, url.port
+    if port is None:
+        port = UDP_PORT if scheme == "udp" else TCP_PORT
+    url = "{}://{}:{}".format(scheme, url.hostname, port)
+    conn = Connection.from_url(url)
+    vers = version(conn)
+    if vers[0] >= 4:
+        klass = Mythen4
+    else:
+        if nmod is None:
+            nmod = 1
+        klass = Mythen
+    return klass(conn, nmod=nmod)
