@@ -126,8 +126,7 @@ def FloatArrayNMod(name, default=None):
 
 def _TypeArrayNChan(name, decoder=int, type="i", default=None):
     def encode(ctx):
-        nb_mod, nb_ch, v = ctx["nmodules"], ctx["modchannels"], ctx[name]
-        n = nb_mod * nb_ch
+        n, v = sum(ctx["modchannels"]), ctx[name]
         return struct.pack("<{}{}".format(n, type), *v[:n])
 
     def decode(ctx, value):
@@ -150,7 +149,7 @@ TYPES = (
     Str("fwversion", "01.03.06\x00"),
     FloatArrayNMod("humidity", [13.4, 12.1, 17.9, 11.8]),
     IntArrayNMod("hv", [124, 122, 178, 124]),
-    Int("modchannels", 1280),
+    IntArrayNMod("modchannels", 4*[1280]),
     Str("modfwversion", 4 * "01.03.07" + "\x00"),
     IntArrayNMod("modnum", [48867, 48868, 48869, 48870]),
     Int("module", 65535),
@@ -358,7 +357,7 @@ def start_acquisition(config, input_signal, output_signal, log):
     delay_before = 0 if internal_trigger else config["delbef"] * ns100
     delay_after = 0 if gate_enabled or continuous_trigger_enabled else config["delafter"] * ns100
     exp_time = config["time"] * ns100
-    nb_channels = config["nmodules"] * config["modchannels"]
+    nb_channels = sum(config["modchannels"])
     nb_gates = config["gates"] if gate_enabled else 1
     nb_frames = config["frames"]
     if gate_enabled:
