@@ -1005,6 +1005,13 @@ class Mythen4(Mythen):
             self.connection.read_exactly_into(view)
             yield i, view, buff
 
+    def gen_readout(self, n, buffers):
+        cmd = '-readout' if n == 1 else '-readout {}'.format(n)
+        self.connection.write(cmd.encode())
+        for i in range(n):
+            buff = next(buffers)
+            self.connection.read_exactly_into(buff)
+            yield buff
 
 def mythen_for_url(url, nmod=None):
     if "://" not in url:

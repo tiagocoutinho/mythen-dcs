@@ -164,3 +164,30 @@ class ChainGroup:
                     conn.read_exactly_into(frame_view)
                     conns.remove(conn)
             yield frame
+
+    def gen_readout(self, n, buffers):
+        connections = {}
+        offset = 0
+        for mythen in self.mythens:
+            num_channels = mythen.num_channels
+            connections[mythen.connection] = mythen, offset, num_channels
+            offset += num_channels
+
+        write = type(self.mythen_master.connection).write
+        cmd = ('-readout' if n == 1 else '-readout {}'.format(n)).encode()
+        results = [
+            self._exec.submit(write, connection, cmd)
+            for connection in connections
+        ]
+        concurrent.futures.wait(results)
+        for i in range(n):
+            frame = next(buffers)
+            conns = set(connections)
+            while conns:
+                ready, _, _ = select.select(conns, (), ())
+                for conn in ready:
+                    mythen, offset, num_channels = connections[conn]
+                    frame_view = frame[offset:offset + num_channels]
+                    conn.read_exactly_into(frame_view)
+                    conns.remove(conn)
+            yield frame

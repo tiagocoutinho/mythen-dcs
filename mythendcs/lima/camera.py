@@ -133,18 +133,38 @@ class DetInfo(HwDetInfoCtrlObj):
         pass
 
 
+def gen_buffer(buffer_manager, nb_frames, frame_size):
+    for frame_nb in range(nb_frames):
+        buff = buffer_manager.getFrameBufferPtr(frame_nb)
+        # don't know why the sip.voidptr has no size
+        buff.setsize(frame_size)
+        yield numpy.frombuffer(buff, dtype='<i4')
+
+
+def gen_frame(frames):
+    for frame_nb, frame in enumerate(frames):
+        frame_info = HwFrameInfoType()
+        frame_info.acq_frame_nb = frame_nb
+        yield frame_info, frame
+
+
 class Acquisition:
 
     def __init__(self, detector, buffer_manager, nb_frames, frame_dim):
         self.detector = detector
         self.buffer_manager = buffer_manager
-        self.nb_frames = nb_frames
-        self.frame_dim = frame_dim
         self.nb_acquired_frames = 0
         self.status = Status.Ready
-        self.frame_infos = [HwFrameInfoType() for i in range(nb_frames)]
         self.stopped = False
+        buffers = gen_buffer(buffer_manager, nb_frames, frame_dim.getMemSize())
+        self.frames = detector.gen_readout(nb_frames, buffers)
+        self.frame_infos = []
+        for frame_nb in range(nb_frames):
+            frame_info = HwFrameInfoType()
+            frame_info.acq_frame_nb = frame_nb
+            self.frame_infos.append(frame_info)
         self.acq_thread = threading.Thread(target=self.acquire)
+        self.acq_thread.daemon = True
 
     def start(self):
         self.acq_thread.start()
@@ -155,27 +175,17 @@ class Acquisition:
         self.acq_thread.join()
 
     def acquire(self):
-        detector, buff_mgr = self.detector, self.buffer_manager
-        frame_infos = self.frame_infos
-        frame_size = self.frame_dim.getMemSize()
+        buffer_manager = self.buffer_manager
         start_time = time.time()
-        detector.start()
+        self.detector.start()
         self.status = Status.Exposure
-        buff_mgr.setStartTimestamp(Timestamp(start_time))
-        for frame_nb in range(self.nb_frames):
-            if self.stopped:
-                break
-            self.status = Status.Readout
-            buff = buff_mgr.getFrameBufferPtr(frame_nb)
-            # don't know why the sip.voidptr has no size
-            buff.setsize(frame_size)
-            data = numpy.frombuffer(buff, dtype='<i4')
-            detector.readout(buff=data)
-            frame_info = frame_infos[frame_nb]
-            frame_info.acq_frame_nb = frame_nb
-            buff_mgr.newFrameReady(frame_info)
+        buffer_manager.setStartTimestamp(Timestamp(start_time))
+        for _, frame_info in zip(self.frames, self.frame_infos):
+            buffer_manager.newFrameReady(frame_info)
             self.nb_acquired_frames += 1
-            self.status = Status.Exposure
+            if self.stopped:
+                self.status = Status.Ready
+                return
         self.status = Status.Ready
 
 
