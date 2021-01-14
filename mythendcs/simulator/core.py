@@ -261,10 +261,8 @@ class BaseAcquisition:
     def acquire(self, frame_nb):
         self._log.debug("start acquiring %d/%d...", frame_nb + 1, self.nb_frames)
         t = self.expose(frame_nb)
-        start_readout = time.monotonic()
         frame = self.create_frame(frame_nb, t)
-        end_readout = time.monotonic()
-        delay = max(0, self.delay_after - (end_readout - start_readout))
+        delay = max(0, self.delay_after)
         gevent.sleep(delay)
         self._log.debug("finished acquiring %d/%d...", frame_nb + 1, self.nb_frames)
         return frame
@@ -280,7 +278,13 @@ class BaseAcquisition:
 
 
 class InternalAcquisition(BaseAcquisition):
-    pass
+
+    def steps(self):
+        acq_time = self.exposure_time + self.delay_after
+        start = time.monotonic()
+        for frame_nb in range(self.nb_frames):
+            self.exposure_time = max(0, start + (frame_nb + 1) * acq_time - time.monotonic() - self.delay_after)
+            yield self.acquire(frame_nb)
 
 
 class BaseTriggerAcquisition(BaseAcquisition):
@@ -535,9 +539,10 @@ class Mythen2(BaseDevice):
             self.acq_task.kill()
             yield OK
         elif cmd == "readout":
+            buff = self.acq.buffer
             nb_frames = int(data[0]) if data else 1
             for _ in range(nb_frames):
-                frame = self.acq.buffer.get()
+                frame = buff.get()
                 if frame is None:
                     break
                 yield frame
