@@ -25,6 +25,7 @@ ERR_MYTHEN_READOUT = -42
 ERR_MYTHEN_SETTINGS = -43
 ERR_MYTHEN_BAD_PARAMETER = -44
 ERR_MYHEN_CMD_REMOVED = -45
+ERR_MYTHEN_COMM_ERROR = -46
 
 ERRORS = {
     -1: 'Unknown command',
@@ -68,7 +69,8 @@ ERRORS = {
     ERR_MYTHEN_READOUT: 'Error with the readout command.',
     ERR_MYTHEN_SETTINGS: 'Return and unknown settings code ({0}).',
     ERR_MYTHEN_BAD_PARAMETER: 'Bad parameter.',
-    ERR_MYHEN_CMD_REMOVED: 'Mythen command not supported anymore'
+    ERR_MYHEN_CMD_REMOVED: 'Mythen command not supported anymore',
+    ERR_MYTHEN_COMM_ERROR: 'Mythen communication error'
 }
 
 
@@ -187,13 +189,14 @@ class Connection:
     def _read_exactly_into(self, buff):
         try:
             size = buff.nbytes
+            buff = buff.view(dtype=np.byte)
         except AttributeError:
             size = len(buff)
-        offset, view = 0, memoryview(buff)
+        offset = 0
         while offset < size:
-            n = self.socket.recv_into(view[offset:])
+            n = self.socket.recv_into(buff[offset:], size - offset)
             if not n:
-                raise ConnectionError("Expected {} bytes. Got {}".format(size, n))
+                raise MythenError(ERR_MYTHEN_COMM_ERROR)
             offset += n
         return buff
 
