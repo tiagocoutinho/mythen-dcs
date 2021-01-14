@@ -36,6 +36,23 @@ class MythenDCS(Device):
     def rate_correction(self, enable):
         self.mythen.rate = enable
 
+    @attribute(dtype=bool)
+    def flatfield_correction(self):
+        return self.mythen.flatfield
+
+    @flatfield_correction.setter
+    def flatfield_correction(self, enable):
+        self.mythen.flatfield = enable
+
+    @attribute(dtype=bool)
+    def bad_channel_interpolation(self):
+        return self.mythen.badchnintrpl
+
+    @bad_channel_interpolation.setter
+    def bad_channel_interpolation(self, enable):
+        self.mythen.badchnintrpl = enable
+
+
     @attribute(dtype=int)
     def readout_bits(self):
         return self.mythen.readoutbits

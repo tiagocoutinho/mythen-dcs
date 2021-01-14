@@ -958,6 +958,21 @@ class Mythen4(Mythen):
     def settings(self):
         raise MythenError(ERR_MYHEN_CMD_REMOVED)
 
+    @property
+    def flatfieldconf(self):
+        raise MythenError(ERR_MYHEN_CMD_REMOVED)
+
+    def load_flatfield(self, slot):
+        """Activates specific customer pre-stored flatfield"""
+        assert slot in {0, 1, 2, 3}
+        self.command('-loadflatfield {}'.format(slot))
+
+    def set_flatfield(self, slot, flatfield):
+        """flatfield should be a numpy array dtype '<u4'"""
+        assert slot in {0, 1, 2, 3}
+        cmd = "-flatfield {} ".format(slot).encode()
+        self.command(cmd + flatfield.tobytes())
+
     @settings.setter
     def settings(self, value):
         """
