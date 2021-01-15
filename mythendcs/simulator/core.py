@@ -201,6 +201,10 @@ OK = 4 * b"\x00"
 
 
 class Protocol(MessageProtocol):
+
+    def handle_message(self, message):
+        gevent.spawn(super().handle_message, message)
+
     def read_messages(self):
         transport = self.transport
         while True:
@@ -587,7 +591,9 @@ class Mythen2(BaseDevice):
             self.start_acquisition()
             yield OK
         elif cmd == "stop":
-            self.acq_task.kill()
+            acq_task = self.acq_task
+            if acq_task is not None:
+                self.acq_task.kill()
             yield OK
         elif cmd == "readout":
             buff = self.acq.buffer
