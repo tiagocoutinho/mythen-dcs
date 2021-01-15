@@ -56,10 +56,13 @@ to start acquisition. The trigger can be sent with::
     low
 """
 
+import glob
 import time
 import struct
 import logging
 import collections
+
+import numpy
 
 import gevent.event
 import gevent.queue
@@ -209,9 +212,10 @@ class Protocol(MessageProtocol):
 
 class BaseAcquisition:
     def __init__(
-        self, input_signal, output_signal, log, nb_frames, exposure_time, nb_channels, delay_before, delay_after, gates
+        self, dataset, input_signal, output_signal, log, nb_frames, exposure_time, nb_channels, delay_before, delay_after, gates
     ):
         self.name = type(self).__name__
+        self.dataset = dataset
         self.input_signal = input_signal
         self.output_signal = output_signal
         self.nb_frames = nb_frames
@@ -246,7 +250,8 @@ class BaseAcquisition:
             yield self.acquire(frame_nb)
 
     def create_frame(self, frame_nb, exposure_time):
-        return self.nb_channels * frame_nb.to_bytes(4, 'little', signed=True)
+        return self.dataset[frame_nb]
+        #return self.nb_channels * frame_nb.to_bytes(4, 'little', signed=True)
 
     def expose(self, frame_nb):
         self.exposing = True
@@ -353,6 +358,7 @@ class GateAcquisition(BaseTriggerAcquisition):
 
 
 def start_acquisition(config, input_signal, output_signal, log):
+    dataset = config["dataset"]
     gate_enabled = config["gateen"]
     trigger_enabled = config["trigen"]
     continuous_trigger_enabled = config["conttrigen"]
@@ -373,7 +379,7 @@ def start_acquisition(config, input_signal, output_signal, log):
         klass = SingleTriggerAcquisition
     else:
         klass = InternalAcquisition
-    acq = klass(input_signal, output_signal, log, nb_frames, exp_time, nb_channels, delay_before, delay_after, nb_gates)
+    acq = klass(dataset, input_signal, output_signal, log, nb_frames, exp_time, nb_channels, delay_before, delay_after, nb_gates)
     acq_task = gevent.spawn(acq.run)
     acq_task.acquisition = acq
     return acq_task
@@ -443,6 +449,38 @@ class SignalSink:
                     logging.error("signal sink %s callback error: %r", data, error)
 
 
+class Dataset:
+
+    def __init__(self, frames):
+        self.frames = frames
+
+    def __len__(self):
+        return len(self.frames)
+
+    def __getitem__(self, n):
+        return self.frames[n % len(self)]
+
+    @classmethod
+    def from_size(cls, size):
+        nb_channels = 4 * 1280
+        return cls([
+            nb_channels * i.to_bytes(4, 'little', signed=True)
+            for i in range(size)
+        ])
+
+    @classmethod
+    def from_raw_files(cls, pattern):
+        return cls([
+            numpy.loadtxt(file, dtype='<i4').T[1]
+            for file in sorted(glob.iglob(pattern))
+        ])
+
+    @classmethod
+    def from_npy(cls, filename):
+        data = numpy.load(filename)
+        return cls([data[i] for i in sorted(data)])
+
+
 class Mythen2(BaseDevice):
 
     protocol = Protocol
@@ -451,9 +489,22 @@ class Mythen2(BaseDevice):
         trigger = kwargs.pop("signal", {})
         input_signal_address = trigger.pop("in", None)
         output_signal_address = trigger.pop("out", None)
+        dataset = kwargs.pop("dataset", None)
         super().__init__(*args, **kwargs)
         self.config = {name: t.default for name, t in TYPE_MAP.items()}
         self.config.update(self.props)
+        if dataset is None:
+            ds = Dataset.from_size(1000)
+        else:
+            if dataset["type"] == "raw":
+                pattern = dataset["pattern"]
+                ds = Dataset.from_raw_files(pattern)
+                self._log.info("loaded %d frames from %s", len(ds), pattern)
+            elif dataset["type"] == "numpy":
+                filename = dataset["file"]
+                ds = Dataset.from_npy(filename)
+                self._log.info("loaded %d frames from %s", len(ds), filename)
+        self.config["dataset"] = ds
         if input_signal_address:
             self.input_signal = SignalSink(
                 input_signal_address,
