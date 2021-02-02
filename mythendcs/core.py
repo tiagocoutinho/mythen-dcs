@@ -98,7 +98,6 @@ TRIGGER_TYPES = ['INTERNAL', 'EXTERNAL_TRIGGER_MULTI',
 
 
 def ensure_connection(f):
-
     @functools.wraps(f)
     def wrapper(self, *args, **kwargs):
         with self.lock:
@@ -1064,3 +1063,15 @@ def mythen_for_url(url, nmod=None, timeout=DEFAULT_TIMEOUT):
             nmod = 1
         klass = Mythen
     return klass(conn, nmod=nmod)
+
+
+def acquire(mythen, exposure_time=1, nb_frames=1):
+    mythen.inttime = exposure_time
+    mythen.frames = nb_frames
+    nchannels = mythen.nchannels
+    def gen_buffers():
+        while True:
+            yield np.empty(nchannels, '<i4')
+    mythen.start()
+    for frame in mythen.gen_readout(nb_frames, gen_buffers()):
+        print(frame)
