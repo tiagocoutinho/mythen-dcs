@@ -114,7 +114,7 @@ def ensure_connection(f):
                     raise
             try:
                 result = f(self, *args, **kwargs)
-                if result is b'':
+                if isinstance(result, bytes) and not result:
                     raise ConnectionError('remote end disconnected')
                 return result
             except socket.timeout:
