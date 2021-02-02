@@ -501,6 +501,9 @@ class Mythen:
         return value
 
     def set_active_modules(self, modules):
+        if self.get_active_modules() == modules:
+            self.log.info('nb. active modules already at %d. Skipping!', modules)
+            return
         self.command('-nmodules %d' % modules)
 
     def set_module(self, value):
