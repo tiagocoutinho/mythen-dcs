@@ -160,13 +160,13 @@ class Connection:
         return "<{} {} {}>".format(kind, conn, (self.host, self.port))
 
     @classmethod
-    def from_url(cls, url):
+    def from_url(cls, url, timeout=DEFAULT_TIMEOUT):
         """Default scheme is TCP"""
         if "://" not in url:
             url = "tcp://" + url
         url = urllib.parse.urlparse(url)
         kind = UDP if url.scheme == "udp" else TCP
-        return cls(url.hostname, url.port, kind=kind)
+        return cls(url.hostname, url.port, timeout=timeout, kind=kind)
 
     def connect(self):
         self.disconnect()
@@ -1013,7 +1013,8 @@ class Mythen4(Mythen):
             self.connection.read_exactly_into(buff)
             yield buff
 
-def mythen_for_url(url, nmod=None):
+
+def mythen_for_url(url, nmod=None, timeout=DEFAULT_TIMEOUT):
     if "://" not in url:
         tmp_url = urllib.parse.urlparse("void://" + url)
         scheme = "udp" if tmp_url.port == UDP_PORT else "tcp"
@@ -1023,7 +1024,7 @@ def mythen_for_url(url, nmod=None):
     if port is None:
         port = UDP_PORT if scheme == "udp" else TCP_PORT
     url = "{}://{}:{}".format(scheme, url.hostname, port)
-    conn = Connection.from_url(url)
+    conn = Connection.from_url(url, timeout=timeout)
     vers = version(conn)
     if vers[0] >= 4:
         klass = Mythen4
