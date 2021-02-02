@@ -881,7 +881,7 @@ class Mythen4(Mythen):
 
     @property
     def assembly_date(self):
-        return self.command("-get assemblydate").strip(b'\x00').decode()
+        return self.command("-get assemblydate").strip(b'\x00').strip().decode()
 
     @property
     def firmware_version(self):
