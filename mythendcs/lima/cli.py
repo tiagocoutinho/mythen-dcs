@@ -16,7 +16,7 @@ from .camera import Interface
 
 
 @camera(name="mythendcs")
-@click.option('mythens', "-u", "--url", type=mythen_for_url, multiple=True)
+@click.option("mythens", "-u", "--url", type=mythen_for_url, multiple=True)
 @click.pass_context
 def mythendcs(ctx, mythens):
     """Dectris Mythen 2 specific commands"""
@@ -24,7 +24,7 @@ def mythendcs(ctx, mythens):
         return
     group = ChainGroup(*mythens)
     interface = Interface(group)
-    ctx.obj['camera'] = group
+    ctx.obj["camera"] = group
     return interface
 
 
@@ -79,8 +79,8 @@ async def scan(port=TCP_PORT, timeout=2.0):
 
 
 @mythendcs.command("scan")
-@click.option('-p', '--port', default=TCP_PORT)
-@click.option('--timeout', default=2.0)
+@click.option("-p", "--port", default=TCP_PORT)
+@click.option("--timeout", default=2.0)
 @table_style
 @max_width
 def mythen_scan(port, timeout, table_style, max_width):
@@ -90,3 +90,16 @@ def mythen_scan(port, timeout, table_style, max_width):
     table.set_style(style)
     table.maxwidth = max_width
     click.echo(table)
+
+
+@mythendcs.command("reset")
+@click.pass_context
+def reset(ctx):
+    camera = ctx.obj["camera"]
+    click.echo("Starting reset... ", nl=False)
+    try:
+        camera.reset()
+    except Exception as error:
+        click.echo("[{}]: {!r}".format(click.style("ERROR", fg="red"), error))
+    else:
+        click.echo("[{}]".format(click.style("DONE", fg="green")))
