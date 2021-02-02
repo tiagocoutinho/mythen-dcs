@@ -6,7 +6,7 @@ from . import camera
 
 class MythenDCS(Device):
 
-    address = device_property(dtype=str)
+    address = device_property(dtype=[str])
 
     def init_device(self):
         super().init_device()
@@ -104,17 +104,13 @@ def get_tango_specific_class_n_device():
     return MythenDCS
 
 
-_MYTHENS = {}
-def get_control(address=None):
-    mythen = _MYTHENS.get(address)
-    if mythen is None:
-        if address is None:
-            # if there is no address use TCP and the server instance
-            # name as host
-            host = Util.instance().get_ds_inst_name()
-            address = "tcp://{}:1031".format(host)
-        _MYTHENS[address] = mythen = camera.get_control(address)
-    return mythen
+_MYTHEN = None
+def get_control(address):
+    print(address)
+    global _MYTHEN
+    if _MYTHEN is None:
+        _MYTHEN = camera.get_control(address)
+    return _MYTHEN
 
 
 def main():
