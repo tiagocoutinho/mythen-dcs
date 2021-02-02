@@ -1,5 +1,6 @@
 import socket
 import struct
+import logging
 import functools
 import threading
 import contextlib
@@ -142,7 +143,7 @@ def guard_timeout(connection, timeout):
 class Connection:
     """Communication channel"""
 
-    def __init__(self, host, port, timeout=DEFAULT_TIMEOUT, kind=TCP):
+    def __init__(self, host, port, timeout=DEFAULT_TIMEOUT, kind=TCP, log=None):
         self.host = host
         self.port  = port
         self.timeout = timeout
@@ -150,6 +151,9 @@ class Connection:
         self.socket = None
         self.fobj = None
         self.lock = threading.Lock()
+        if log is None:
+            log = logging.getLogger('mythen.[{}:{} at {:x}]'.format(host, port, id(self)))
+        self.log = log
 
     def __del__(self):
         self.disconnect()
@@ -173,8 +177,10 @@ class Connection:
         sock = socket.socket(socket.AF_INET, type=self.kind)
         if self.timeout != DEFAULT_TIMEOUT:
             sock.settimeout(self.timeout)
+        self.log.info("-> connecting")
         sock.connect((self.host, self.port))
         self.fobj = sock.makefile("rwb", buffering=0)
+        self.log.info("<- connected!")
         self.socket = sock
 
     def disconnect(self):
@@ -206,25 +212,37 @@ class Connection:
 
     @ensure_connection
     def read(self, size, timeout=DEFAULT_TIMEOUT):
+        self.log.debug("-> read(%s)", size)
         with guard_timeout(self, timeout):
-            return self.fobj.read(size)
+            reply = self.fobj.read(size)
+        self.log.debug("<- read %d bytes", len(reply))
+        return reply
 
     @ensure_connection
     def read_exactly_into(self, buff, timeout=DEFAULT_TIMEOUT):
+        self.log.debug("-> read_exactly_into(%s)", buff.nbytes)
         with guard_timeout(self, timeout):
-            return self._read_exactly_into(buff)
+            reply = self._read_exactly_into(buff)
+        self.log.debug("<- read_exactly_into %d bytes", reply.nbytes)
+        return reply
 
     @ensure_connection
     def write_read(self, data, size, timeout=DEFAULT_TIMEOUT):
+        self.log.debug("-> write_read(%r, %d)", data, size)
         with guard_timeout(self, timeout):
             self.fobj.write(data)
-            return self.fobj.read(size)
+            reply = self.fobj.read(size)
+        self.log.debug("<- write_read(%r)", reply)
+        return reply
 
     @ensure_connection
     def write_read_exactly_into(self, data, buff, timeout=DEFAULT_TIMEOUT):
+        self.log.debug("-> write_read_exactly_into(%r)", data)
         with guard_timeout(self, timeout):
             self.fobj.write(data)
-            return self._read_exactly_into(buff)
+            reply = self._read_exactly_into(buff)
+        self.log.debug("<- write_read_exactly_into %d bytes", len(reply))
+        return reply
 
 
 def to_int(d):
@@ -285,11 +303,16 @@ class Mythen:
     MASK_WAIT_TRIGGER = 1 << 3  # Bit 3
     MASK_FIFO_EMPTY = 1 << 16  # Bit 16
 
-    def __init__(self, connection, nmod=1):
+    def __init__(self, connection, nmod=1, log=None):
         """
         :param connection
         :param nmod: Number of modules
         """
+        if log is None:
+            name = type(self).__name__
+            host, port = connection.host, connection.port
+            log = logging.getLogger('mythen.{}({}:{})'.format(name, host, port))
+        self.log = log
         self.connection = connection
         self.buff = nmod * self.MAX_BUFF_SIZE_MODULE
         self.nchannels = nmod * self.MAX_CHANNELS
@@ -800,7 +823,12 @@ class Mythen:
 
 class Mythen4(Mythen):
 
-    def __init__(self, connection, nmod=None):
+    def __init__(self, connection, nmod=None, log=None):
+        if log is None:
+            name = type(self).__name__
+            host, port = connection.host, connection.port
+            log = logging.getLogger('mythen.{}({}:{})'.format(name, host, port))
+        self.log = log
         self._num_module_channels = None
         self.connection = connection
         self.buff = (nmod or 4) * self.MAX_BUFF_SIZE_MODULE
