@@ -20,7 +20,7 @@ from .camera import Interface
 @click.pass_context
 def mythendcs(ctx, mythens):
     """Dectris Mythen 2 specific commands"""
-    if url is None:
+    if not mythens:
         return
     group = ChainGroup(*mythens)
     interface = Interface(group)
