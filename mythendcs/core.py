@@ -220,10 +220,10 @@ class Connection:
 
     @ensure_connection
     def read_exactly_into(self, buff, timeout=DEFAULT_TIMEOUT):
-        self.log.debug("-> read_exactly_into(%s)", buff.nbytes)
+        self.log.debug("-> read_exactly_into()")
         with guard_timeout(self, timeout):
             reply = self._read_exactly_into(buff)
-        self.log.debug("<- read_exactly_into %d bytes", reply.nbytes)
+        self.log.debug("<- read_exactly_into")
         return reply
 
     @ensure_connection
