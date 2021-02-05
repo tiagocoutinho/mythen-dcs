@@ -194,12 +194,13 @@ class Connection:
     def _read_exactly_into(self, buff):
         try:
             size = buff.nbytes
-            buff = buff.view(dtype=np.byte)
+            view = buff.view(dtype=np.byte)
         except AttributeError:
             size = len(buff)
+            view = memoryview(buff)
         offset = 0
         while offset < size:
-            n = self.socket.recv_into(buff[offset:], size - offset)
+            n = self.socket.recv_into(view[offset:], size - offset)
             if not n:
                 raise MythenError(ERR_MYTHEN_COMM_ERROR)
             offset += n
