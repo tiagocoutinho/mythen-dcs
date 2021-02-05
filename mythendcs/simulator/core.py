@@ -549,7 +549,8 @@ class Mythen2(BaseDevice):
     def status(self):
         acq_task = self.acq_task
         if acq_task is None:
-            running = exposing = readout = 0
+            running = exposing = 0
+            readout = 1
         else:
             running = 0 if self.acq_task.ready() else 1
             exposing = (1 if self.acq.exposing else 0) if running else 0
