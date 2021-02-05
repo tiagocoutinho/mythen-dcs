@@ -31,26 +31,33 @@ def test_queries(mythen):
     nmods = config["nmodules"]
     ff = numpy.array(config["flatfield"][:nmods * 1280], dtype=numpy.int32)
     badch = numpy.array(config["badchannels"][:nmods * 1280], dtype=numpy.int32)
-    assert mythen.version == config["version"][:-1] # take out \x00
+    version = mythen.version
+    assert version == config["version"][:-1] # take out \x00
+    assert mythen.get_active_modules() == config["nmodules"]
     assert mythen.frames == config["frames"]
     assert mythen.inttime == int(config["time"] * 1E-7)
-    assert mythen.settings == "Standard"
-    assert mythen.settingsmode == config["settingsmode"]
+    if int(version[1]) > 2:
+        with pytest.raises(MythenError):
+            assert mythen.settings == "Standard"
+        with pytest.raises(MythenError):
+            assert mythen.settingsmode == config["settingsmode"]
+    else:
+        assert mythen.settings == "Standard"
+        assert mythen.settingsmode == config["settingsmode"]
     assert mythen.readoutbits == config["nbits"]
     assert mythen.status == "ON"
     assert not mythen.waitingtrigger
-    assert mythen.fifoempty
     assert not mythen.running
+    assert mythen.fifoempty
     assert mythen.badchnintrpl == config["badchannelinterpolation"]
     assert mythen.flatfield == config["flatfieldcorrection"]
     assert (mythen.flatfieldconf == ff).all()
     assert (mythen.badchn == badch).all()
     assert mythen.rate == config["ratecorrection"]
-    assert mythen.get_active_modules() == config["nmodules"]
     assert mythen.triggermode == bool(config["trigen"])
     assert mythen.continuoustrigger == bool(config["conttrigen"])
     assert mythen.gatemode == bool(config["gateen"])
-    assert pytest.approx(mythen.tau * 1e7) == config["tau"][:nmods]
+    assert pytest.approx(mythen.tau * 1e9) == config["tau"][:nmods]
     assert pytest.approx(mythen.threshold) == config["kthresh"][:nmods]
 
 
@@ -84,7 +91,7 @@ def test_commands(mythen):
     assert config["nmodules"] == 1
 
     mythen.tau = 5.4E-7
-    assert pytest.approx(nmods*[5.4]) == config["tau"][:nmods]
+    assert pytest.approx([540]) == config["tau"]
 
 
 def test_command_bad_parameter(tcp_conn):
@@ -125,6 +132,7 @@ def test_reset(mythen):
 def test_readout(mythen):
     mythen.frames = 1
     mythen.inttime = 0.1
+    mythen.trigen = False
     mythen.start()
     assert mythen.status == "RUNNING"
     assert mythen.running

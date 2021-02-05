@@ -5,7 +5,7 @@ import gevent.event
 import pytest
 
 from sinstruments.simulator import create_server_from_config
-from mythendcs.core import Mythen, Connection, TCP, UDP
+from mythendcs.core import Mythen, Connection, TCP, UDP, mythen_for_url
 
 
 @pytest.fixture
@@ -51,7 +51,7 @@ def server():
                 "name": "sim-myth",
                 "class": "Mythen2",
                 "package": "mythendcs.simulator",
-                "nmodules": 1,
+                "nmodules": 4,
                 "transports": [
                     dict(type="tcp", url="127.0.0.1:0"),
                     dict(type="udp", url="127.0.0.1:0")
@@ -107,7 +107,14 @@ def conn(server, request):
 
 @pytest.fixture
 def mythen(server, request):
-    conn = _conn(server, request.param)
-    mythen = Mythen(conn)
+    kind = request.param
+    if kind == TCP:
+        scheme, (host, port) = 'tcp', server.mythen.tcp_addr
+    elif kind == UDP:
+        scheme, (host, port) = 'udp', server.mythen.udp_addr
+    else:
+        raise ValueError('unsupported socket kind %r' % kind)
+    url = '{}://{}:{}'.format(scheme, host, port)
+    mythen = mythen_for_url(url)
     mythen.server = server
     yield mythen
