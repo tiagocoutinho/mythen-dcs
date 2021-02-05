@@ -176,6 +176,8 @@ class Connection:
         sock = socket.socket(socket.AF_INET, type=self.kind)
         if self.timeout != DEFAULT_TIMEOUT:
             sock.settimeout(self.timeout)
+        if self.kind == TCP:
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, True)
         self.log.info("-> connecting")
         sock.connect((self.host, self.port))
         self.fobj = sock.makefile("rwb", buffering=0)
