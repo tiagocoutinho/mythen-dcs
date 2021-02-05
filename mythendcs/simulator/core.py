@@ -260,9 +260,11 @@ class BaseAcquisition:
     def expose(self, frame_nb):
         self.exposing = True
         self._log.debug("start exposure %d/%d...", frame_nb + 1, self.nb_frames)
-        self.output_signal.gate_high()
+        if self.output_signal:
+            self.output_signal.gate_high()
         gevent.sleep(self.exposure_time)
-        self.output_signal.gate_low()
+        if self.output_signal:
+            self.output_signal.gate_low()
         self.exposing = False
         self._log.debug("finished exposure %d/%d...", frame_nb + 1, self.nb_frames)
         return self.exposure_time
@@ -348,11 +350,13 @@ class GateAcquisition(BaseTriggerAcquisition):
             self.wait_high()
             self.exposing = True
             start = time.time()
-            self.output_signal.gate_high()
+            if self.output_signal:
+                self.output_signal.gate_high()
             self._log.debug("start exposure %d/%d (gate %d/%d)...",
                             frame_nb + 1, nb_frames, gate_nb + 1, nb_gates)
             self.wait_low()
-            self.output_signal.gate_low()
+            if self.output_signal:
+                self.output_signal.gate_low()
             self.exposing = False
             exposure_time += time.time() - start
             self._log.debug("finished exposure %d/%d (gate %d/%d)",
@@ -515,6 +519,8 @@ class Mythen2(BaseDevice):
                 on_high=self._on_high_input_signal,
                 on_low=self._on_low_input_signal
             )
+        else:
+            self.input_signal = None
         if output_signal_address:
             if isinstance(output_signal_address, int):
                 port = output_signal_address
@@ -522,6 +528,8 @@ class Mythen2(BaseDevice):
                 host, port = output_signal_address.rsplit(":", 1)
                 port = int(port)
             self.output_signal = SignalSource(port)
+        else:
+            self.output_signal = None
         self.acq_task = None
 
     def __getitem__(self, name):
