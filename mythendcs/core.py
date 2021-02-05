@@ -961,6 +961,30 @@ class Mythen4(Mythen):
         self.command('-cutoff %d' % value)
 
     @property
+    def tau(self):
+        """
+        :return: Value of the current Tau
+        """
+        raw_value = self.command('-get tau')
+        # the buffer we get is read-only (numpy view of raw_value).
+        # We need a copy to be able to process it (ns -> seconds)
+        value = to_float_list(raw_value).copy()
+        value *= 1e-9
+        return value
+
+    @tau.setter
+    def tau(self, value):
+        """
+        :param value: Value of Tau in seconds.
+        :return:
+        """
+        if value < 0 and value != -1:
+            raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
+        if value != -1:
+            value *= 1e9
+        self.command('-tau %d' % int(value))
+
+    @property
     def outputhigh(self):
         raise MythenError(ERR_MYHEN_CMD_REMOVED)
 
