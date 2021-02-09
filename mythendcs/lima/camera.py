@@ -138,6 +138,7 @@ def gen_buffer(buffer_manager, nb_frames, frame_size):
         buff = buffer_manager.getFrameBufferPtr(frame_nb)
         # don't know why the sip.voidptr has no size
         buff.setsize(frame_size)
+        # TODO: adjust numpy array type
         yield numpy.frombuffer(buff, dtype='<i4')
 
 

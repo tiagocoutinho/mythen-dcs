@@ -489,7 +489,7 @@ class Dataset:
         return cls([data[i] for i in sorted(data)])
 
 
-class Mythen2(BaseDevice):
+class MythenDCS(BaseDevice):
 
     protocol = Protocol
 

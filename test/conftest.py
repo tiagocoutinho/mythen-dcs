@@ -4,53 +4,18 @@ import threading
 import gevent.event
 import pytest
 
+from sinstruments.pytest import server_context
 from sinstruments.simulator import create_server_from_config
 from mythendcs.core import Mythen, Connection, TCP, UDP, mythen_for_url
 
 
-@pytest.fixture
-def server():
-
-    serv = None
-
-    def run():
-        nonlocal serv
-
-        def stop():
-            watcher.start(stop_event.set)
-            watcher.send()
-            # need to create a connection to trigger a wake up
-            # event on the server so it shuts down
-            try:
-                with socket.create_connection(serv.mythen.tcp_addr):
-                    pass
-            except OSError:
-                pass
-            stopped_event.wait()
-
-        serv = create_server_from_config(config)
-        watcher = gevent.get_hub().loop.async_()
-        stop_event = gevent.event.Event()
-        serv.mythen = serv.get_device_by_name("sim-myth")
-        tcp, udp = serv.devices[serv.mythen]
-        tcp.start()
-        udp.start()
-        serv.stop_thread_safe = stop
-        serv.mythen.tcp_addr = tcp.address
-        serv.mythen.udp_addr = udp.address
-        started_event.set()
-        stop_event.wait()
-        tcp.stop()
-        udp.stop()
-        watcher.close()
-        stopped_event.set()
-
-    config = {
+@pytest.fixture()
+def config():
+    return {
         "devices": [
             {
                 "name": "sim-myth",
-                "class": "Mythen2",
-                "package": "mythendcs.simulator",
+                "class": "MythenDCS",
                 "nmodules": 4,
                 "transports": [
                     dict(type="tcp", url="127.0.0.1:0"),
@@ -61,17 +26,15 @@ def server():
         ]
     }
 
-    started_event = threading.Event()
-    stopped_event = threading.Event()
-    thread = threading.Thread(target=run)
-    thread.start()
-    started_event.wait()
-    serv.thread = thread
-    try:
+
+@pytest.fixture
+def server(config):
+    with server_context(config) as serv:
+        serv.mythen = serv.devices["sim-myth"]
+        tcp, udp = serv.mythen.transports
+        serv.mythen.tcp_addr = tcp.address
+        serv.mythen.udp_addr = udp.address
         yield serv
-    finally:
-        serv.stop_thread_safe()
-        thread.join()
 
 
 @pytest.fixture
