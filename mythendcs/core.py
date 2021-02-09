@@ -1017,7 +1017,7 @@ class Mythen4(Mythen):
         assert slot in {0, 1, 2, 3}
         self.command('-loadflatfield {}'.format(slot))
 
-    def upload_flatfield(self, slot, flatfield):
+    def store_flatfield(self, slot, flatfield):
         """flatfield should be a numpy array dtype '<u4'"""
         assert slot in {0, 1, 2, 3}
         cmd = "-flatfield {} ".format(slot).encode()
