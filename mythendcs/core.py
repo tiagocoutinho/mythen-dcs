@@ -950,6 +950,22 @@ class Mythen4(Mythen):
         return self.command("-energy {}".format(value))
 
     @property
+    def min_energy(self):
+        return to_float_list(self.command("-get energymin"))
+
+    @property
+    def max_energy(self):
+        return to_float_list(self.command("-get energymax"))
+
+    @property
+    def min_threshold(self):
+        return to_float_list(self.command("-get kthreshmin"))
+
+    @property
+    def max_threshold(self):
+        return to_float_list(self.command("-get kthreshmax"))
+
+    @property
     def cutoff(self):
         return to_int(self.command('-get cutoff'))
 
