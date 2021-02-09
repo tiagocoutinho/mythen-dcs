@@ -1069,6 +1069,73 @@ class Mythen4(Mythen):
             self.connection.read_exactly_into(buff)
             yield buff
 
+    def __repr__(self):
+        return mythen_repr(self)
+
+
+MYTHEN4_REPR = """\
+Mythen {version} {system}
+  Nb. modules: {nb_modules}
+  Nb. active modules: {nb_active_modules}
+  Nb. channels: {nb_channels} [{nb_mod_channels}]
+  Dynamic range: {nbits}
+  Bad channel interpolation = {bad_channel}
+  Flatfield correction = {flatfield}
+  Rate correction = {rate}
+  Exposure time [s]: {exp_time:.3f}
+  Nb. frames: {nb_frames}
+  Threshold [keV]: {threshold:.1f} [{thresholds}]
+  Energy [keV]: {energy:.1f} [{energies}]\
+"""
+
+
+MYTHEN4_DUMP = """\
+Mythen {version} {system}
+Nb. modules: {nb_modules}
+Nb. active modules: {nb_active_modules}
+Nb. channels: {nb_channels} ({nb_mod_channels})
+Dynamic range: {nbits}
+Temperature [°C]: {{temp:.1f}}
+Bad channel interpolation = {bad_channel}
+Flatfield correction = {flatfield}
+Rate correction = {rate}
+Modules:
+  Temperatures [°C]: {{mod_temps}}
+  Humidities [%]: {{mod_humid}}
+Exposure time [s]: {exp_time:.3f}
+Nb. frames: {nb_frames}
+Thresholds [keV]: {thresholds}
+Energy [keV]: {energy}\
+"""
+
+
+def mythen_repr(mythen):
+    name = type(mythen).__name__
+    try:
+        thresholds = mythen.threshold
+        threshold = np.average(thresholds)
+        energies = mythen.energy
+        energy = np.average(energies)
+        opts = dict(
+            version=mythen.version, system=mythen.system_serial_number,
+            nb_modules=mythen.nmods, nb_active_modules=mythen.active_modules,
+            nb_channels=mythen.num_channels,
+            nb_mod_channels=", ".join(str(n) for n in mythen.num_module_channels),
+            nbits=mythen.readoutbits,
+            bad_channel='ON' if mythen.badchnintrpl else 'OFF',
+            flatfield='ON' if mythen.flatfield else 'OFF',
+            rate='ON' if mythen.rate else 'OFF',
+            exp_time=mythen.inttime,
+            nb_frames=mythen.frames,
+            threshold=threshold,
+            energy=energy,
+            thresholds=", ".join("{:.1f}".format(t) for t in thresholds),
+            energies=", ".join("{:.1f}".format(e) for e in energies),
+        )
+        return MYTHEN4_REPR.format(**opts)
+    except Exception as error:
+        return "Mythen ({!r})".format(error)
+
 
 def mythen_for_url(url, nmod=None, timeout=DEFAULT_TIMEOUT):
     if "://" not in url:

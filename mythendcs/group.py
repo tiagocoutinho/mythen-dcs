@@ -3,6 +3,8 @@ import concurrent.futures
 
 import numpy as np
 
+from mythendcs.core import mythen_repr
+
 
 class ChainGroup:
     """
@@ -192,3 +194,6 @@ class ChainGroup:
                     conn.read_exactly_into(frame_view)
                     conns.remove(conn)
             yield frame
+
+    def __repr__(self):
+        return mythen_repr(self)
