@@ -388,11 +388,8 @@ class Mythen:
         """
         :return: Numpy array with the bad channels defined in the hardware.
         """
-        raw_value = self.command('-get badchannels')
-        values = to_int_list(raw_value)
-        if len(values) != self.nchannels:
-            raise MythenError(ERR_MYTHEN_COMM_LENGTH)
-        return values
+        values = np.empty(self.nchannels, dtype='<i4')
+        return self.connection.write_read_exactly_into(b'-get badchannels', values)
 
     # ------------------------------------------------------------------
     #   Bad Channels Interpolation
