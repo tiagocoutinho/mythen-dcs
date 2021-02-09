@@ -1032,6 +1032,12 @@ class Mythen4(Mythen):
             raise MythenError(ERR_MYTHEN_BAD_PARAMETER)
         self.command('-settings %s' % value)
 
+    @property
+    def test_pattern(self):
+        values = np.empty(self.nchannels, dtype='<i4')
+        return self.connection.write_read_exactly_into(b'-testpattern', values)
+
+
     def ireadout(self, n=None, buff=None):
         frame_channels = self.nchannels
         frame_bytes = frame_channels * 4

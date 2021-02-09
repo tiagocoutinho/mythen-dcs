@@ -32,7 +32,8 @@ class ChainGroup:
         "num_module_channels", "energy", "threshold", "badchn",
         "module_high_voltages", "module_temperatures", "module_humidities",
         "module_serial_numbers", "module_firmware_versions",
-        "module_sensor_materials", "module_sensor_thicknesses", "module_sensor_widths"
+        "module_sensor_materials", "module_sensor_thicknesses",
+        "module_sensor_widths", "test_pattern"
     }
 
     def __init__(self, master, *slaves, executor=None):
