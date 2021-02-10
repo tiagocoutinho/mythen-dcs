@@ -1,7 +1,8 @@
 from tango import DevState, Util
-from tango.server import Device, device_property, attribute
+from tango.server import Device, device_property, attribute, command
 
 from . import camera
+from ..core import mythen_table
 
 
 class MythenDCS(Device):
@@ -19,6 +20,9 @@ class MythenDCS(Device):
     def dev_state(self):
         status = self.mythen.status
         return DevState.RUNNING if status  == "RUNNING" else DevState.ON
+
+    def dev_status(self):
+        return self.mythen.status
 
     @attribute(dtype=int)
     def nb_active_modules(self):
@@ -51,7 +55,6 @@ class MythenDCS(Device):
     @bad_channel_interpolation.setter
     def bad_channel_interpolation(self, enable):
         self.mythen.badchnintrpl = enable
-
 
     @attribute(dtype=int)
     def readout_bits(self):
@@ -98,6 +101,20 @@ class MythenDCS(Device):
     def tau(self, tau):
         assert len(tau) == 1
         self.mythen.tau = tau[0]
+
+    @command(dtype_out=str)
+    def repr(self):
+        return repr(self.mythen)
+
+    @command
+    def reset(self):
+        self.mythen.reset()
+
+    @command(dtype_out=str)
+    def dump(self):
+        table, mod_table = mythen_table(self.mythen)
+        mod_table.maxwidth = 140
+        return "{}\n\n{}".format(table, mod_table)
 
 
 def get_tango_specific_class_n_device():

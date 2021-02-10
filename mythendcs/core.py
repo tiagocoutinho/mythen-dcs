@@ -1134,7 +1134,7 @@ def mythen_table(mythen):
     table.rows.append(("Bad channel interpolation", 'ON' if mythen.badchnintrpl else 'OFF'))
     table.rows.append(("Flatfield correction", 'ON' if mythen.flatfield else 'OFF'))
     table.rows.append(("Rate correction", 'ON' if mythen.rate else 'OFF'))
-    table.rows.append(("Temperature [°C]", temp))
+    table.rows.append(("Temperature [degC]", temp))
     #table.rows.append(("Energy range [keV]", "[{:1.f}, {:1.f}]".format(mythen.min_energy, mythen.max_energy)))
     #table.rows.append(("Threshold range [keV]", "[{:1.f}, {:1.f}]".format(mythen.min_threshold, mythen.max_threshold)))
     table.rows.append(("Cut off", mythen.cutoff))
@@ -1160,9 +1160,9 @@ def mythen_table(mythen):
     mod_table.rows.append(["Energy [keV]"] + ["{:.1f}".format(e) for e in mythen.energy])
     mod_table.rows.append(["Energy range [keV]"] + energy_range)
     mod_table.rows.append(["Tau"] + ["{:.1f}".format(t) for t in mythen.tau])
-    #mod_table.rows.append(["High voltage [V]"] + ["{}".format(v) for v in mythen.module_high_voltages])
-    #mod_table.rows.append(["Temperature [°C]"] + ["{:.1f}".format(t - 273) for t in mythen.module_temperatures])
-    #mod_table.rows.append(["Humidity [%]"] + ["{:.1f}".format(h*100) for h in mythen.module_humidities])
+    mod_table.rows.append(["High voltage [V]"] + ["{}".format(v) for v in mythen.module_high_voltages])
+    mod_table.rows.append(["Temperature [degC]"] + ["{:.1f}".format(t - 273) for t in mythen.module_temperatures])
+    mod_table.rows.append(["Humidity [%]"] + ["{:.1f}".format(h*100) for h in mythen.module_humidities])
 
     return table, mod_table
 
