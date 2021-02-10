@@ -31,7 +31,7 @@ class ChainGroup:
     }
 
     CONCAT_GET = {
-        "num_module_channels", "energy", "threshold", "badchn",
+        "num_module_channels", "energy", "threshold", "tau", "badchn",
         "module_high_voltages", "module_temperatures", "module_humidities",
         "module_serial_numbers", "module_firmware_versions",
         "module_sensor_materials", "module_sensor_thicknesses",
@@ -101,6 +101,14 @@ class ChainGroup:
     @property
     def num_channels(self):
         return self.num_module_channels.sum()
+
+    @property
+    def nmods(self):
+        return sum(mythen.nmods for mythen in self.mythens)
+
+    @property
+    def active_modules(self):
+        return sum(self._map(getattr, ("active_modules",)))
 
     @property
     def flatfieldconf(self):

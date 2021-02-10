@@ -10,7 +10,7 @@ from limatb.cli import camera, url, table_style, max_width
 from limatb.info import info_list
 from limatb.network import get_subnet_addresses, get_host_by_addr
 
-from ..core import mythen_for_url, TCP_PORT
+from ..core import mythen_for_url, TCP_PORT, mythen_table
 from ..group import ChainGroup
 from .camera import Interface
 
@@ -90,6 +90,30 @@ def mythen_scan(port, timeout, table_style, max_width):
     table.set_style(style)
     table.maxwidth = max_width
     click.echo(table)
+
+
+@mythendcs.command("state")
+@click.pass_context
+def state(ctx):
+    camera = ctx.obj["camera"]
+    click.echo(camera)
+
+
+@mythendcs.command("status")
+@table_style
+@max_width
+@click.pass_context
+def status(ctx, table_style, max_width):
+    camera = ctx.obj["camera"]
+    table, mod_table = mythen_table(camera)
+    style = getattr(table, "STYLE_" + table_style.upper())
+    table.set_style(style)
+    table.maxwidth = max_width
+    mod_table.set_style(style)
+    mod_table.maxwidth = max_width
+    click.echo(table)
+    click.echo()
+    click.echo(mod_table)
 
 
 @mythendcs.command("reset")

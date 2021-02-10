@@ -1093,7 +1093,7 @@ MYTHEN4_REPR = """\
 Mythen {version} {system}
   Nb. modules: {nb_modules}
   Nb. active modules: {nb_active_modules}
-  Nb. channels: {nb_channels} [{nb_mod_channels}]
+  Nb. channels: {nb_channels}
   Dynamic range: {nbits}
   Bad channel interpolation = {bad_channel}
   Flatfield correction = {flatfield}
@@ -1105,24 +1105,66 @@ Mythen {version} {system}
 """
 
 
-MYTHEN4_DUMP = """\
-Mythen {version} {system}
-Nb. modules: {nb_modules}
-Nb. active modules: {nb_active_modules}
-Nb. channels: {nb_channels} ({nb_mod_channels})
-Dynamic range: {nbits}
-Temperature [°C]: {{temp:.1f}}
-Bad channel interpolation = {bad_channel}
-Flatfield correction = {flatfield}
-Rate correction = {rate}
-Modules:
-  Temperatures [°C]: {{mod_temps}}
-  Humidities [%]: {{mod_humid}}
-Exposure time [s]: {exp_time:.3f}
-Nb. frames: {nb_frames}
-Thresholds [keV]: {thresholds}
-Energy [keV]: {energy}\
-"""
+def mythen_table(mythen):
+    from beautifultable import BeautifulTable
+    table = BeautifulTable()
+    nb_active_modules = mythen.active_modules
+    temp = mythen.temperature
+    if isinstance(temp, float):
+        temp = "{:.1f}".format(temp - 273)
+    else:
+        temp = ", ".join("{:.1f}".format(t - 273) for t in temp)
+
+    system = mythen.system_serial_number
+    if isinstance(system, int):
+        system = "M-{}".format(system)
+    else:
+        system = ", ".join("M-{}".format(s) for s in system)
+    assembly = mythen.assembly_date
+    if not isinstance(assembly, str):
+        assembly = "\n".join(assembly)
+    table.columns.header = ["Field", "Value"]
+    table.rows.append(("Version", mythen.version))
+    table.rows.append(("System Nb.", system))
+    table.rows.append(("Assembly date", assembly))
+    table.rows.append(("Nb. modules", mythen.nmods))
+    table.rows.append(("Nb. active modules", nb_active_modules))
+    table.rows.append(("Nb. channels", mythen.num_channels))
+    table.rows.append(("Dynamic range", mythen.readoutbits))
+    table.rows.append(("Bad channel interpolation", 'ON' if mythen.badchnintrpl else 'OFF'))
+    table.rows.append(("Flatfield correction", 'ON' if mythen.flatfield else 'OFF'))
+    table.rows.append(("Rate correction", 'ON' if mythen.rate else 'OFF'))
+    table.rows.append(("Temperature [°C]", temp))
+    #table.rows.append(("Energy range [keV]", "[{:1.f}, {:1.f}]".format(mythen.min_energy, mythen.max_energy)))
+    #table.rows.append(("Threshold range [keV]", "[{:1.f}, {:1.f}]".format(mythen.min_threshold, mythen.max_threshold)))
+    table.rows.append(("Cut off", mythen.cutoff))
+
+
+    mod_table = BeautifulTable()
+    min_energy, max_energy = mythen.min_energy, mythen.max_energy
+    min_threshold, max_threshold = mythen.min_threshold, mythen.max_threshold
+    energy_range = [
+        "[{:.1f}, {:.1f}]".format(mine, maxe)
+        for mine, maxe in zip(min_energy, max_energy)
+    ]
+    threshold_range = [
+        "[{:.1f}, {:.1f}]".format(mint, maxt)
+        for mint, maxt in zip(min_threshold, max_threshold)
+    ]
+    mod_table.columns.header = ["Modules"] + ["M{}".format(i) for i in range(1, len(min_energy)+1)]
+    mod_table.rows.append(["Serial Nb."] + ["{}".format(s) for s in mythen.module_serial_numbers])
+    mod_table.rows.append(["Firmware version"] + ["{}".format(s) for s in mythen.module_firmware_versions])
+    mod_table.rows.append(["Nb channels"] + ["{}".format(s) for s in mythen.num_module_channels])
+    mod_table.rows.append(["Threshold [keV]"] + ["{:.1f}".format(t) for t in mythen.threshold])
+    mod_table.rows.append(["Threshold range [keV]"] + threshold_range)
+    mod_table.rows.append(["Energy [keV]"] + ["{:.1f}".format(e) for e in mythen.energy])
+    mod_table.rows.append(["Energy range [keV]"] + energy_range)
+    mod_table.rows.append(["Tau"] + ["{:.1f}".format(t) for t in mythen.tau])
+    #mod_table.rows.append(["High voltage [V]"] + ["{}".format(v) for v in mythen.module_high_voltages])
+    #mod_table.rows.append(["Temperature [°C]"] + ["{:.1f}".format(t - 273) for t in mythen.module_temperatures])
+    #mod_table.rows.append(["Humidity [%]"] + ["{:.1f}".format(h*100) for h in mythen.module_humidities])
+
+    return table, mod_table
 
 
 def mythen_repr(mythen):
@@ -1136,7 +1178,6 @@ def mythen_repr(mythen):
             version=mythen.version, system=mythen.system_serial_number,
             nb_modules=mythen.nmods, nb_active_modules=mythen.active_modules,
             nb_channels=mythen.num_channels,
-            nb_mod_channels=", ".join(str(n) for n in mythen.num_module_channels),
             nbits=mythen.readoutbits,
             bad_channel='ON' if mythen.badchnintrpl else 'OFF',
             flatfield='ON' if mythen.flatfield else 'OFF',
