@@ -1215,13 +1215,10 @@ def mythen_for_url(url, nmod=None, timeout=DEFAULT_TIMEOUT):
     return klass(conn, nmod=nmod)
 
 
-def acquire(mythen, exposure_time=1, nb_frames=1):
+def gen_acquisition(mythen, nb_frames=1, exposure_time=1):
     mythen.inttime = exposure_time
     mythen.frames = nb_frames
     nchannels = mythen.nchannels
-    def gen_buffers():
-        while True:
-            yield np.empty(nchannels, '<i4')
+    buff = np.empty((nb_frames, nchannels), '<i4')
     mythen.start()
-    for frame in mythen.gen_readout(nb_frames, gen_buffers()):
-        print(frame)
+    return mythen.gen_readout(nb_frames, iter(buff))
