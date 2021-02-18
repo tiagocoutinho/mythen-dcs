@@ -151,7 +151,9 @@ class Connection:
         self.fobj = None
         self.lock = threading.Lock()
         if log is None:
-            log = logging.getLogger('mythen.[{}:{} at {:x}]'.format(host, port, id(self)))
+            log = logging.getLogger(
+                'mythen.Connection({}:{})'.format(host, port)
+            )
         self.log = log
 
     def __del__(self):
