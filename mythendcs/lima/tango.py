@@ -113,6 +113,8 @@ class MythenDCS(Device):
     @command(dtype_out=str)
     def dump(self):
         table, mod_table = mythen_table(self.mythen)
+        table.set_style(mod_table.STYLE_COMPACT)
+        mod_table.set_style(mod_table.STYLE_COMPACT)
         mod_table.maxwidth = 140
         return "{}\n\n{}".format(table, mod_table)
 
@@ -123,7 +125,6 @@ def get_tango_specific_class_n_device():
 
 _MYTHEN = None
 def get_control(address):
-    print(address)
     global _MYTHEN
     if _MYTHEN is None:
         _MYTHEN = camera.get_control(address)
