@@ -562,17 +562,19 @@ class Mythen:
     #   Status
     # ------------------------------------------------------------------
     @property
+    def raw_status(self):
+        """
+        :return: Return the raw status of the Mythen
+        """
+        raw_value = self.command('-get status')
+        return to_int(raw_value)
+
+    @property
     def status(self):
         """
         :return: Return the status of the Mythen: On, Running or Wait Trigger.
         """
-        raw_value = self.command('-get status')
-        value = to_int(raw_value)
-        if value & self.MASK_RUNNING:
-            state = 'RUNNING'
-        else:
-            state = 'ON'
-        return state
+        return "RUNNING" if self.raw_status & self.MASK_RUNNING else "ON"
 
     # ------------------------------------------------------------------
     #   waitingtrigger
@@ -582,9 +584,7 @@ class Mythen:
         """
         :return: Return the status of the Mythen: On, Running or Wait Trigger.
         """
-        raw_value = self.command('-get status')
-        value = to_int(raw_value)
-        return bool(value & self.MASK_WAIT_TRIGGER)
+        return bool(self.raw_status & self.MASK_WAIT_TRIGGER)
 
     # ------------------------------------------------------------------
     #   fifoempty
@@ -594,9 +594,7 @@ class Mythen:
         """
         :return: Return the status of the Mythen: On, Running or Wait Trigger.
         """
-        raw_value = self.command('-get status')
-        value = to_int(raw_value)
-        return bool(value & self.MASK_FIFO_EMPTY)
+        return bool(self.raw_status & self.MASK_FIFO_EMPTY)
 
     # ------------------------------------------------------------------
     #   running
@@ -606,9 +604,7 @@ class Mythen:
         """
         :return: Return the status of the Mythen: On, Running or Wait Trigger.
         """
-        raw_value = self.command('-get status')
-        value = to_int(raw_value)
-        return bool(value & self.MASK_RUNNING)
+        return bool(self.raw_status & self.MASK_RUNNING)
 
     # ------------------------------------------------------------------
     #   Rate
@@ -1053,7 +1049,6 @@ class Mythen4(Mythen):
         values = np.empty(self.nchannels, dtype='<i4')
         return self.connection.write_read_exactly_into(b'-testpattern', values)
 
-
     def ireadout(self, n=None, buff=None):
         frame_channels = self.nchannels
         frame_bytes = frame_channels * 4
@@ -1101,7 +1096,8 @@ Mythen {version} {system}
   Exposure time [s]: {exp_time:.3f}
   Nb. frames: {nb_frames}
   Threshold [keV]: {threshold:.1f} [{thresholds}]
-  Energy [keV]: {energy:.1f} [{energies}]\
+  Energy [keV]: {energy:.1f} [{energies}]
+  Status: {status}\
 """
 
 
@@ -1167,9 +1163,22 @@ def mythen_table(mythen):
     return table, mod_table
 
 
+def _status_str(status):
+    result = "Acquiring" if status & Mythen.MASK_RUNNING else "Not acquiring"
+    if status & Mythen.MASK_FIFO_EMPTY:
+        result += ", empty fifo"
+    if status & Mythen.MASK_WAIT_TRIGGER:
+        result += ", waiting trigger"
+    return result
+
+
 def mythen_repr(mythen):
     name = type(mythen).__name__
     try:
+        status = mythen.raw_status
+        str_status = _status_str(status)
+        if status & mythen.MASK_RUNNING:
+            return "Mythen({})".format(str_status)
         thresholds = mythen.threshold
         threshold = np.average(thresholds)
         energies = mythen.energy
@@ -1186,12 +1195,13 @@ def mythen_repr(mythen):
             nb_frames=mythen.frames,
             threshold=threshold,
             energy=energy,
+            status=str_status,
             thresholds=", ".join("{:.1f}".format(t) for t in thresholds),
             energies=", ".join("{:.1f}".format(e) for e in energies),
         )
         return MYTHEN4_REPR.format(**opts)
     except Exception as error:
-        return "Mythen ({!r})".format(error)
+        return "Mythen({!r})".format(error)
 
 
 def mythen_for_url(url, nmod=None, timeout=DEFAULT_TIMEOUT):
