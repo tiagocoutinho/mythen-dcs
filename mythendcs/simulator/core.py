@@ -151,7 +151,7 @@ TYPES = (
     Float("dcstemperature", 307.896),
     Float("frameratemax", 987.5),
     Str("fwversion", "01.03.06\x00"),
-    FloatArrayNMod("humidity", [13.4, 12.1, 17.9, 11.8]),
+    FloatArrayNMod("humidity", [0.134, 0.121, 0.179, 0.118]),
     IntArrayNMod("hv", [124, 122, 178, 124]),
     IntArrayNMod("modchannels", 4*[1280]),
     Str("modfwversion", 4 * "01.03.07" + "\x00"),
