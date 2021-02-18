@@ -1135,7 +1135,7 @@ def mythen_table(mythen):
     table.rows.append(("Temperature [degC]", temp))
     #table.rows.append(("Energy range [keV]", "[{:1.f}, {:1.f}]".format(mythen.min_energy, mythen.max_energy)))
     #table.rows.append(("Threshold range [keV]", "[{:1.f}, {:1.f}]".format(mythen.min_threshold, mythen.max_threshold)))
-    table.rows.append(("Cut off", mythen.cutoff))
+    #table.rows.append(("Cut off", mythen.cutoff))
 
 
     mod_table = BeautifulTable()
@@ -1230,7 +1230,7 @@ def mythen_for_url(url, nmod=None, timeout=DEFAULT_TIMEOUT):
 def gen_acquisition(mythen, nb_frames=1, exposure_time=1):
     mythen.inttime = exposure_time
     mythen.frames = nb_frames
-    nchannels = mythen.nchannels
+    nchannels = mythen.num_channels
     buff = np.empty((nb_frames, nchannels), '<i4')
     mythen.start()
     return mythen.gen_readout(nb_frames, iter(buff))
