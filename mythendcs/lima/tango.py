@@ -13,6 +13,10 @@ class MythenDCS(Device):
         super().init_device()
         self.ctrl = get_control(self.address)
 
+    def delete_device(self):
+        super().delete_device()
+        self.mythen.connection.disconnect()
+
     @property
     def mythen(self):
         return self.ctrl.hwInterface().detector
