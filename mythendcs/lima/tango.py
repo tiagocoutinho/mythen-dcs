@@ -1,3 +1,4 @@
+import numpy
 from tango import DevState, Util
 from tango.server import Device, device_property, attribute, command
 
@@ -35,6 +36,22 @@ class MythenDCS(Device):
     @nb_active_modules.setter
     def nb_active_modules(self, nb_active_modules):
         self.mythen.set_active_modules(nb_active_modules)
+
+    @attribute(dtype=int, unit="eV")
+    def energy(self):
+        return int(numpy.average(self.mythen.energy) * 1000)
+
+    @energy.setter
+    def energy(self, energy):
+        self.mythen.energy = energy / 1000.0
+
+    @attribute(dtype=int, unit="eV")
+    def threshold(self):
+        return int(numpy.average(self.mythen.threshold) * 1000)
+
+    @threshold.setter
+    def threshold(self, threshold):
+        self.mythen.threshold = threshold / 1000.0
 
     @attribute(dtype=bool)
     def rate_correction(self):
@@ -87,15 +104,6 @@ class MythenDCS(Device):
     @attribute(dtype=int)
     def nb_gates(self):
         return self.mythen.num_gates
-
-    @attribute(dtype=[float], unit="keV", max_dim_x=24)
-    def threshold(self):
-        return self.mythen.threshold
-
-    @threshold.setter
-    def threshold(self, threshold):
-        assert len(threshold) == 1
-        self.mythen.threshold = threshold[0]
 
     @attribute(dtype=[float], unit="s", max_dim_x=24)
     def tau(self):
