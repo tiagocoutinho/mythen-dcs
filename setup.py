@@ -19,7 +19,7 @@ extras_require["all"] = list(
 )
 
 setup(
-    name="MythenDCS",
+    name="mythen-dcs",
     description="Device server to control the MythenDCS 1 and 4",
     version=__version,
     author="Roberto J. Homs Puron",
