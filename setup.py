@@ -10,7 +10,7 @@ long_description = 'Tango Device Server (DS) to have the remote control of '\
                    'configuration parameters.'
 
 extras_require = {
-    "tango" : ["PyTango>=7.1"],
+    "tango" : ["PyTango>=9.2"],
     "simulator": ["sinstruments>=1.3", "gevent"],
     "lima": ["lima-toolbox>=1", "beautifultable>=1", "click"],
 }
