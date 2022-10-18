@@ -181,6 +181,7 @@ TYPES = (
     IntArrayNChan("flatfield", 4 * 1280 * [0]),
     Int("inpol", 0),  # 0 - rising edge, 1 - falling edge (removed in v4.0)
     Int("outpol", 0),  # 0 - rising edge, 1 - falling edge (removed in v4.0)
+    Int("cutoff", 1),
     IntArrayNMod(
         "settings", 4 * [0]
     ),  # 0: Standard, 1: Highgain, 2: Fast, 3: Unknown (deprecated since v3.0)
